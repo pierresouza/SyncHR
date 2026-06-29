@@ -33,21 +33,6 @@ O **Smart Leading (Clear One IA)** é um copiloto inteligente de IA criado no **
 | F-05 | Fluxo de Escalação e Gestão de Conflitos | Pronto para Dev | Canal de escalação claro e mediação de conflitos vinculada a histórico |
 | F-06 | Dashboard Analítico e Sync HR | A Fazer | Visão consolidada para RH/C-Level e sincronização líderes-colaboradores |
 
----
-
-## 4. Especificações Ativas (Em Detalhe)
-## 3. Backlog de Épicos e Features
-| ID | Título | Status | Notas |
-|---|---|---|---|
-| F-01 | Onboarding & Perfil de Liderança | Pronto para Dev | Configura perfil de líder (Técnico, Transição, Engajado) e níveis |
-| F-02 | Perfil do Colaborador (Testes & Levels) | A Fazer | Testes de perfil e mapeamento com frameworks de níveis de cargo |
-| F-03 | Copiloto de 1:1 e Feedbacks | Pronto para Dev | Auxílio inteligente em 3 momentos: antes (roteiros), durante (tempo real) e após |
-| F-04 | Evolução Contínua de PDI | A Fazer | Sugestão e acompanhamento contínuo de PDIs entre ciclos |
-| F-05 | Fluxo de Escalação e Gestão de Conflitos | Pronto para Dev | Canal de escalação claro e mediação de conflitos vinculada a histórico |
-| F-06 | Dashboard Analítico e Sync HR | A Fazer | Visão consolidada para RH/C-Level e sincronização líderes-colaboradores |
-
----
-
 ## 4. Especificações Ativas (Em Detalhe)
 
 ### F-01: Onboarding & Perfil de Liderança (Pronto para Dev)
