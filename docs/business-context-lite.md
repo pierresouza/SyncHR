@@ -24,14 +24,14 @@ O **Smart Leading (Clear One IA)** é um copiloto inteligente de IA criado no **
 ---
 
 ## 3. Backlog de Épicos e Features
-| ID | Título | Status | Notas |
-|---|---|---|---|
-| F-01 | Onboarding & Perfil de Liderança | Pronto para Dev | Configura perfil de líder (Técnico, Transição, Engajado) e níveis |
-| F-02 | Perfil do Colaborador (Testes & Levels) | A Fazer | Testes de perfil e mapeamento com frameworks de níveis de cargo |
-| F-03 | Copiloto de 1:1 e Feedbacks | Pronto para Dev | Auxílio inteligente em 3 momentos: antes (roteiros), durante (tempo real) e após |
-| F-04 | Evolução Contínua de PDI | A Fazer | Sugestão e acompanhamento contínuo de PDIs entre ciclos |
-| F-05 | Fluxo de Escalação e Gestão de Conflitos | Pronto para Dev | Canal de escalação claro e mediação de conflitos vinculada a histórico |
-| F-06 | Dashboard Analítico e Sync HR | A Fazer | Visão consolidada para RH/C-Level e sincronização líderes-colaboradores |
+| ID | Título | Status | Responsável | Notas |
+|---|---|---|---|---|
+| F-01 | Onboarding & Perfil de Liderança | Pronto para Dev | Pierre / Ketelin | Configura perfil de líder (Técnico, Transição, Engajado) e níveis |
+| F-02 | Perfil do Colaborador (Testes & Levels) | A Fazer | — | Testes de perfil e mapeamento com frameworks de níveis de cargo |
+| F-03 | Copiloto de 1:1 e Feedbacks | Pronto para Dev | Pierre / Ketelin | Auxílio inteligente em 3 momentos: antes (roteiros), durante (tempo real) e após |
+| F-04 | Evolução Contínua de PDI | A Fazer | — | Sugestão e acompanhamento contínuo de PDIs entre ciclos |
+| F-05 | Fluxo de Escalação e Gestão de Conflitos | Pronto para Dev | Gustavo / Lucas | Canal de escalação claro e mediação de conflitos vinculada a histórico |
+| F-06 | Dashboard Analítico e Sync HR | A Fazer | — | Visão consolidada para RH/C-Level e sincronização líderes-colaboradores |
 
 ## 4. Especificações Ativas (Em Detalhe)
 
@@ -55,6 +55,18 @@ Como **Líder**, quero passar por um fluxo de onboarding na plataforma web para 
 
 ---
 
+### F-02: Perfil do Colaborador (A Fazer)
+
+#### História do Usuário
+- Como **Líder**
+- Quero **visualizar o nível e perfil comportamental do meu liderado**
+- Para que **eu adapte os roteiros ao contexto real de cada colaborador**
+
+#### Critérios de Aceite
+- CAs: a definir no Sprint de especificação desta feature
+
+---
+
 ### F-03: Copiloto de 1:1 e Feedbacks (Pronto para Dev)
 
 #### História do Usuário
@@ -68,6 +80,18 @@ Como **Líder**, quero usar o copiloto inteligente web para me apoiar antes, dur
 #### Regras de Negócio
 * **Princípio Human-in-the-loop:** O agente de IA atua como suporte e orientação, nunca substituindo o julgamento do líder. Toda decisão sobre tom, conteúdo final e encaminhamentos é de responsabilidade exclusiva do gestor humano (aviso visível em destaque na interface).
 * **Restrição de Tom:** Os roteiros e sugestões da IA devem seguir o tom organizacional da Clear IT: direto, focado em resultados, empático e com calor humano, sem jargões de RH corporativos desconectados.
+
+---
+
+### F-04: Evolução Contínua de PDI (A Fazer)
+
+#### História do Usuário
+- Como **Líder**
+- Quero **acompanhar o progresso do PDI entre ciclos**
+- Para que **eu não perca a rastreabilidade dos compromissos acordados nas 1:1s**
+
+#### Critérios de Aceite
+- CAs: a definir no Sprint de especificação desta feature
 
 ---
 
@@ -85,3 +109,27 @@ Como **Colaborador / Líder**, quero ter acesso a um canal estruturado para soli
 #### Regras de Negócio
 * Exigência de histórico: Apenas conflitos discutidos em 1:1s nos últimos 45 dias podem ser escalados via fluxo padrão. Denúncias graves de assédio ou quebra do código de ética pulam essa regra e são enviadas diretamente ao RH.
 * O colaborador pode acompanhar o status da escalação (Pendente, Em Análise, Concluída) por sua interface.
+
+---
+
+### F-06: Dashboard Analítico e Sync HR (A Fazer)
+
+#### História do Usuário
+- Como **Gerente de RH (Priscila Bacelar)**
+- Quero **uma visão consolidada da frequência e qualidade das 1:1s por líder**
+- Para que **eu tome decisões de clima com base em dados, não em percepções**
+
+#### Critérios de Aceite
+- CAs: a definir no Sprint de especificação desta feature
+
+---
+
+## 5. Validação de Escopo — Sprint 1 / MVP
+
+- **Escopo aprovado em:** 2026-06-29
+- **Aprovado por:** Priscila Bacelar (Gerente de RH — Clear IT) / Instrutor Pulse Mais
+- **Dentro do escopo:** F-01 Onboarding, F-03 Copiloto 1:1, F-05 Escalação
+- **Fora do escopo (MVP):** Integração Sólides, migração de histórico, PDI
+- **Restrições inegociáveis:** LGPD (RN01), Human-in-the-loop (RN02), 45 dias (RN03)
+- **Próxima revisão:** ao iniciar Sprint 2 / fase técnica
+
