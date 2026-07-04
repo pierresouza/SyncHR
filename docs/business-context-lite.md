@@ -10,8 +10,7 @@ O **Smart Leading (Clear One IA)** é um copiloto inteligente de IA criado no **
 
 **Integrantes do Squad:**
 - **Tech:** Pierre Souza (Ponto Focal Principal), Ketelin Macedo
-- **Negócio/Produto:** Gustavo Batista, Lucas Santos
-- **Membros do Squad:** André Almeida
+- **Negócio/Produto:** Gustavo Batista, Lucas Santos, André Almeida
 ---
 
 ## 2. Dores do Cliente (Problemas que resolvemos)
