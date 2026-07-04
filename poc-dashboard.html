@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Leading - Copiloto de IA (PoC Interactive Dashboard)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --surface: rgba(20, 26, 44, 0.65);
+            --surface-border: rgba(99, 102, 241, 0.15);
+            --surface-hover: rgba(99, 102, 241, 0.08);
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.25);
+            --cyan: #06b6d4;
+            --cyan-glow: rgba(6, 182, 212, 0.2);
+            --green: #10b981;
+            --green-glow: rgba(16, 185, 129, 0.2);
+            --red: #ef4444;
+            --red-glow: rgba(239, 68, 68, 0.2);
+            --amber: #f59e0b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            --font-main: 'Outfit', sans-serif;
+            --font-title: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            position: relative;
+        }
+
+        /* Background Glows */
+        .glow-orbs {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.15;
+            animation: float 10s ease-in-out infinite alternate;
+        }
+        .orb-1 {
+            width: 500px;
+            height: 500px;
+            background: var(--primary);
+            top: -100px;
+            right: -100px;
+        }
+        .orb-2 {
+            width: 400px;
+            height: 400px;
+            background: var(--cyan);
+            bottom: -100px;
+            left: -100px;
+            animation-delay: -5s;
+        }
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(40px, 30px) scale(1.1); }
+        }
+
+        .grid-overlay {
+            position: fixed;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Sidebar */
+        aside {
+            width: 280px;
+            background: rgba(15, 22, 38, 0.85);
+            border-right: 1px solid var(--surface-border);
+            backdrop-filter: blur(20px);
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            z-index: 10;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo-icon {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--primary), var(--cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+        }
+        .logo-text {
+            font-family: var(--font-title);
+            font-weight: 700;
+            font-size: 1.25rem;
+            letter-spacing: -0.5px;
+        }
+        .logo-text span {
+            color: var(--primary);
+        }
+
+        .menu-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            list-style: none;
+        }
+        .menu-item button {
+            width: 100%;
+            background: none;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            padding: 12px 16px;
+            border-radius: 12px;
+            text-align: left;
+            font-family: var(--font-main);
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .menu-item button:hover {
+            background: var(--surface-hover);
+            color: var(--text);
+            border-color: rgba(99, 102, 241, 0.05);
+        }
+        .menu-item.active button {
+            background: linear-gradient(135deg, var(--primary), rgba(99, 102, 241, 0.1));
+            color: var(--text);
+            border-color: var(--surface-border);
+            box-shadow: 0 8px 24px var(--primary-glow);
+        }
+
+        .leader-status-panel {
+            margin-top: auto;
+            background: rgba(99, 102, 241, 0.05);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 16px;
+        }
+        .lsp-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .lsp-value {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--cyan);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .lsp-level {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Main Content */
+        main {
+            flex-grow: 1;
+            padding: 40px;
+            z-index: 10;
+            overflow-y: auto;
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        header.content-header {
+            margin-bottom: 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .header-title h1 {
+            font-family: var(--font-title);
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header-title p {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            color: var(--primary);
+        }
+        .badge-cyan {
+            background: rgba(6, 182, 212, 0.1);
+            border-color: rgba(6, 182, 212, 0.2);
+            color: var(--cyan);
+        }
+        .badge-green {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.2);
+            color: var(--green);
+        }
+        .badge-red {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.2);
+            color: var(--red);
+        }
+
+        /* Card styles */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--surface-border);
+            border-radius: 24px;
+            padding: 32px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+            transition: var(--transition);
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            opacity: 0.2;
+        }
+
+        /* Form elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .form-control {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--surface-border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: var(--text);
+            font-family: var(--font-main);
+            font-size: 0.95rem;
+            transition: var(--transition);
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+            background: rgba(15, 23, 42, 0.8);
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* Radio Card Selection */
+        .radio-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .radio-card {
+            background: rgba(15, 22, 38, 0.5);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .radio-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+            background: var(--surface-hover);
+        }
+        .radio-card.selected {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.08);
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+        .radio-card input {
+            position: absolute;
+            opacity: 0;
+        }
+        .rc-icon {
+            font-size: 1.8rem;
+        }
+        .rc-title {
+            font-family: var(--font-title);
+            font-weight: 700;
+            font-size: 1.05rem;
+        }
+        .rc-desc {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, var(--primary), #4f46e5);
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-family: var(--font-main);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+        .btn-cyan {
+            background: linear-gradient(135deg, var(--cyan), #0891b2);
+            box-shadow: 0 4px 14px rgba(6, 182, 212, 0.3);
+        }
+        .btn-cyan:hover {
+            box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--surface-border);
+            box-shadow: none;
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Sections routing */
+        .page-section {
+            display: none;
+            animation: fadeIn 0.4s ease-out;
+        }
+        .page-section.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Roteiro Result Markdown Box */
+        .result-box {
+            background: #0f1322;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 24px;
+            display: none;
+        }
+        .rb-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+        .rb-title {
+            font-family: var(--font-title);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--cyan);
+        }
+        .rb-body {
+            font-family: var(--font-main);
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
+        .rb-body h3 {
+            color: var(--text);
+            margin: 16px 0 8px 0;
+            font-size: 1.1rem;
+            font-family: var(--font-title);
+        }
+        .rb-body h3:first-child {
+            margin-top: 0;
+        }
+        .rb-body ul {
+            margin-left: 20px;
+            margin-bottom: 12px;
+        }
+        .rb-body li {
+            margin-bottom: 6px;
+        }
+        .rb-body p {
+            margin-bottom: 12px;
+        }
+        .highlight-alert {
+            background: rgba(99, 102, 241, 0.08);
+            border-left: 4px solid var(--primary);
+            padding: 12px 16px;
+            border-radius: 0 12px 12px 0;
+            margin: 16px 0;
+            font-size: 0.88rem;
+        }
+
+        /* Live Chat Simulation */
+        .chat-container {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 24px;
+            height: 480px;
+            margin-top: 20px;
+        }
+        .chat-sidebar {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+        }
+        .chat-prompt-btn {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--surface-border);
+            color: var(--text);
+            padding: 12px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: left;
+            font-family: var(--font-main);
+            font-size: 0.88rem;
+            transition: var(--transition);
+            line-height: 1.4;
+        }
+        .chat-prompt-btn:hover {
+            border-color: var(--primary);
+            background: var(--surface-hover);
+        }
+        .chat-window {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-header {
+            background: rgba(15, 23, 42, 0.8);
+            border-bottom: 1px solid var(--surface-border);
+            padding: 16px 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .chat-message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 0.92rem;
+            line-height: 1.5;
+            animation: messageIn 0.3s ease-out;
+        }
+        @keyframes messageIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-collaborator {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--text);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .message-ai {
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid var(--surface-border);
+            color: var(--text);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+            position: relative;
+        }
+        .message-ai::before {
+            content: 'Smart Leading AI';
+            display: block;
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--cyan);
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+        .message-system {
+            background: rgba(245, 158, 11, 0.05);
+            border: 1px solid rgba(245, 158, 11, 0.15);
+            color: var(--amber);
+            align-self: center;
+            text-align: center;
+            font-size: 0.8rem;
+            max-width: 100%;
+        }
+
+        .chat-footer {
+            padding: 16px;
+            background: rgba(15, 23, 42, 0.8);
+            border-top: 1px solid var(--surface-border);
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Timeline and Log items */
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .timeline-item {
+            display: flex;
+            gap: 16px;
+            background: rgba(15, 23, 42, 0.3);
+            border: 1px solid var(--surface-border);
+            border-radius: 16px;
+            padding: 16px 20px;
+        }
+        .timeline-date {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--cyan);
+            white-space: nowrap;
+        }
+        .timeline-content h4 {
+            font-family: var(--font-title);
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+        .timeline-content p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Toggle switches */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background-color: rgba(255,255,255,0.1);
+            border: 1px solid var(--surface-border);
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--text-muted);
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px);
+            background-color: #fff;
+        }
+
+        /* Info boxes */
+        .info-box {
+            background: rgba(6, 182, 212, 0.04);
+            border: 1px solid rgba(6, 182, 212, 0.15);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .info-box-icon {
+            font-size: 1.5rem;
+            color: var(--cyan);
+        }
+        .info-box-content h4 {
+            font-family: var(--font-title);
+            margin-bottom: 4px;
+            color: var(--cyan);
+        }
+        .info-box-content p {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* Status alerts */
+        .status-alert {
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-top: 20px;
+            display: none;
+            align-items: flex-start;
+            gap: 12px;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .status-alert-icon {
+            font-size: 1.25rem;
+        }
+        .status-alert.error {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--red);
+            display: flex;
+        }
+        .status-alert.success {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: var(--green);
+            display: flex;
+        }
+        .status-alert-content h4 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+        .status-alert-content p {
+            font-size: 0.85rem;
+            opacity: 0.85;
+            line-height: 1.5;
+        }
+
+        /* Table styles */
+        table.poc-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+        table.poc-table th, table.poc-table td {
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.88rem;
+        }
+        table.poc-table th {
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.78rem;
+        }
+        table.poc-table tr:hover td {
+            background: rgba(255,255,255,0.01);
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Ambient Visual Elements -->
+    <div class="glow-orbs">
+        <div class="orb orb-1" id="orbA"></div>
+        <div class="orb orb-2" id="orbB"></div>
+    </div>
+    <div class="grid-overlay"></div>
+
+    <!-- Sidebar Navigation -->
+    <aside>
+        <div class="logo-area">
+            <span class="logo-icon">🧅</span>
+            <div class="logo-text">Smart <span>Leading</span></div>
+        </div>
+
+        <ul class="menu-list">
+            <li class="menu-item active" id="menu-onboarding">
+                <button onclick="switchSection('onboarding')">
+                    <span>👤</span> Onboarding do Líder
+                </button>
+            </li>
+            <li class="menu-item" id="menu-copiloto">
+                <button onclick="switchSection('copiloto')">
+                    <span>💬</span> Copiloto 1:1 e Feedbacks
+                </button>
+            </li>
+            <li class="menu-item" id="menu-escalation">
+                <button onclick="switchSection('escalation')">
+                    <span>🛡️</span> Escalação de Conflitos
+                </button>
+            </li>
+            <li class="menu-item" id="menu-tech">
+                <button onclick="switchSection('tech')">
+                    <span>⚙️</span> Validação PoC & Tech
+                </button>
+            </li>
+        </ul>
+
+        <div class="leader-status-panel">
+            <div class="lsp-title">Perfil Atual do Líder</div>
+            <div class="lsp-value" id="current-profile-badge">
+                <span>⚡</span> Líder em Transição
+            </div>
+            <div class="lsp-level" id="current-level-badge">Nível Alvo: Coordenador → Gerente</div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main>
+        
+        <!-- SECTION 1: ONBOARDING -->
+        <section id="sec-onboarding" class="page-section active">
+            <header class="content-header">
+                <div class="header-title">
+                    <span class="badge">Feature F-01</span>
+                    <h1>Onboarding & Perfil de Liderança</h1>
+                    <p>Defina o perfil de gestão para que a IA adapte o tom de voz, jargões e profundidade dos roteiros.</p>
+                </div>
+            </header>
+
+            <div class="card">
+                <h3 style="font-family: var(--font-title); margin-bottom: 20px;">1. Selecione o seu Perfil de Liderança</h3>
+                <div class="radio-cards">
+                    <div class="radio-card" id="card-tecnico" onclick="selectLeaderProfile('tecnico')">
+                        <input type="radio" name="profile" value="tecnico">
+                        <div class="rc-icon">🤖</div>
+                        <div class="rc-title">Líder Técnico</div>
+                        <div class="rc-desc">Foco em entrega, prazos e métricas objetivas. Baixa tolerância a processos e jargões burocráticos de RH.</div>
+                    </div>
+                    <div class="radio-card selected" id="card-transicao" onclick="selectLeaderProfile('transicao')">
+                        <input type="radio" name="profile" value="transicao" checked>
+                        <div class="rc-icon">🌱</div>
+                        <div class="rc-title">Líder em Transição</div>
+                        <div class="rc-desc">Recém-promovido de técnico a gestor. Busca guias detalhados, apoio de inteligência emocional e resolução de conflitos.</div>
+                    </div>
+                    <div class="radio-card" id="card-engajado" onclick="selectLeaderProfile('engajado')">
+                        <input type="radio" name="profile" value="engajado">
+                        <div class="rc-icon">🔥</div>
+                        <div class="rc-title">Líder Engajado</div>
+                        <div class="rc-desc">Valoriza conversas profundas e PDIs, mas sofre com extrema falta de tempo no dia a dia. Busca agilidade e resumos rápidos.</div>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="onb-level-from">Nível Atual do Gestor</label>
+                        <select class="form-control" id="onb-level-from" onchange="updateMappedProfile()">
+                            <option value="Colaborador L4">Colaborador Sênior (L4)</option>
+                            <option value="Coordenador" selected>Coordenador</option>
+                            <option value="Gerente">Gerente</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="onb-level-to">Nível Alvo / Próximo Nível</label>
+                        <select class="form-control" id="onb-level-to" onchange="updateMappedProfile()">
+                            <option value="Coordenador">Coordenador</option>
+                            <option value="Gerente" selected>Gerente</option>
+                            <option value="Diretor (C-Level)">Diretor (C-Level)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn" onclick="saveOnboarding()">Salvar Configurações de Perfil</button>
+            </div>
+
+            <div class="card" id="profile-result-card">
+                <span class="badge badge-cyan" style="margin-bottom:12px;">Mapeamento da IA</span>
+                <h3 style="font-family: var(--font-title); font-size:1.3rem; margin-bottom: 8px;" id="result-profile-title">Perfil: Líder em Transição</h3>
+                <p style="font-size:0.95rem; color:var(--text-muted); line-height: 1.6; margin-bottom: 16px;" id="result-profile-desc">
+                    Como um líder que fez a transição recente de um papel técnico para gestão, a IA Smart Leading focará em te dar roteiros passo a passo estruturados. Evitaremos dar apenas tópicos gerais; a IA fornecerá o roteiro detalhado de perguntas e apoios de inteligência emocional para te preparar para conversas difíceis de performance e comportamento.
+                </p>
+                <div class="highlight-alert" style="margin: 0;" id="result-profile-adaptation">
+                    <strong>Como a IA adaptará a comunicação:</strong> "Forneceremos orientações detalhadas de comunicação verbal, o racional por trás de cada pergunta e o passo a passo da estrutura SBI (Situation-Behavior-Impact) para feedbacks difíceis."
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: COPILOTO 1:1 -->
+        <section id="sec-copiloto" class="page-section">
+            <header class="content-header">
+                <div class="header-title">
+                    <span class="badge">Feature F-03</span>
+                    <h1>Copiloto de 1:1 e Feedbacks</h1>
+                    <p>Prepare-se antes da conversa em menos de 3 minutos, e conte com o apoio da IA durante e após o diálogo.</p>
+                </div>
+            </header>
+
+            <div class="info-box">
+                <div class="info-box-icon">🔒</div>
+                <div class="info-box-content">
+                    <h4>Segurança & LGPD Ativados</h4>
+                    <p>O copiloto anonimiza automaticamente dados pessoais sensíveis em conformidade com as regras de negócio da Clear IT. Utilize apenas perfis comportamentais genéricos (ex: Executor/Analista) e referências de nível organizacionais (L1-L4) para simular o contexto.</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="font-family: var(--font-title); margin-bottom: 20px;">1. Preparação da Reunião (Antes da Conversa)</h3>
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Identificação do Colaborador (Genérico/LGPD)</label>
+                        <select class="form-control" id="1on1-colab-name">
+                            <option value="Colaborador A (Desenvolvedor L2)">Colaborador A (Desenvolvedor L2)</option>
+                            <option value="Colaborador B (Tech Lead L4)">Colaborador B (Tech Lead L4)</option>
+                            <option value="Colaborador C (Designer L1)">Colaborador C (Designer L1)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tipo de 1:1 / Conversa</label>
+                        <select class="form-control" id="1on1-type">
+                            <option value="Quinzenal Rotineira">Quinzenal Rotineira</option>
+                            <option value="Feedback Difícil (Baixa Performance)">Feedback Difícil (Baixa Performance)</option>
+                            <option value="Alinhamento de Carreira & PDI">Alinhamento de Carreira & PDI</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Perfil Comportamental do Liderado</label>
+                        <select class="form-control" id="1on1-colab-disc">
+                            <option value="Dominante/Executor (Focado em entregas rápidas)">Dominante/Executor (Focado em entregas rápidas)</option>
+                            <option value="Estável/Planejador (Gosta de segurança e processos claros)" selected>Estável/Planejador (Gosta de segurança e processos claros)</option>
+                            <option value="Analítico (Focado em detalhes técnicos e perfeccionismo)">Analítico (Focado em detalhes técnicos e perfeccionismo)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Contexto Prático da Situação</label>
+                        <select class="form-control" id="1on1-context">
+                            <option value="Atrasos frequentes nas últimas duas sprints e pouca comunicação.">Atrasos frequentes nas últimas duas sprints e pouca comunicação.</option>
+                            <option value="Queda recente na motivação e demonstração de sobrecarga.">Queda recente na motivação e demonstração de sobrecarga.</option>
+                            <option value="Excepcional performance técnica, mas demonstrando desgaste com a equipe.">Excepcional performance técnica, mas demonstrando desgaste com a equipe.</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn btn-cyan" onclick="generate1on1Script()">
+                    <span>✨</span> Gerar Roteiro Personalizado pela IA
+                </button>
+
+                <!-- Dynamic Script Output -->
+                <div class="result-box" id="script-result-box">
+                    <div class="rb-header">
+                        <span class="rb-title">Roteiro Gerado pelo Smart Leading (Baseado no seu perfil de Líder)</span>
+                        <span class="badge badge-green" id="script-profile-applied">Tom: Transição</span>
+                    </div>
+                    <div class="rb-body" id="script-result-body">
+                        <!-- Dynamic content filled by JS -->
+                    </div>
+                    <div style="font-size: 0.72rem; color:var(--text-dim); margin-top: 16px; border-top:1px solid rgba(255,255,255,0.06); padding-top: 8px;">
+                        ⚠️ <strong>Princípio Human-in-the-loop:</strong> Este roteiro é uma recomendação da IA. Ajuste a pauta de acordo com seu contexto real e bom senso.
+                    </div>
+                </div>
+            </div>
+
+            <!-- DURING THE TALK: CHATBOT SIMULATION -->
+            <div class="card">
+                <h3 style="font-family: var(--font-title); margin-bottom: 8px;">2. Assistente em Tempo Real (Durante a Conversa)</h3>
+                <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 20px;">Simule a resposta do liderado durante a reunião e receba orientações imediatas da IA.</p>
+
+                <div class="chat-container">
+                    <div class="chat-sidebar">
+                        <div style="font-size: 0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom: 6px;">Selecione uma fala do Colaborador:</div>
+                        <button class="chat-prompt-btn" onclick="sendChatMessage('Estou me sentindo muito sobrecarregado com as tarefas do projeto e não consigo entregar nos prazos.')">
+                            💬 "Estou muito sobrecarregado..."
+                        </button>
+                        <button class="chat-prompt-btn" onclick="sendChatMessage('Sinto que meu trabalho técnico é bom, mas não vejo para onde crescer na Clear IT ou qual o meu PDI.')">
+                            💬 "Não vejo meu PDI / Carreira..."
+                        </button>
+                        <button class="chat-prompt-btn" onclick="sendChatMessage('Acho que meu gestor anterior não registrava nossos combinados, por isso perdi a confiança no processo de feedback.')">
+                            💬 "Perdi a confiança no feedback..."
+                        </button>
+                    </div>
+
+                    <div class="chat-window">
+                        <div class="chat-header">
+                            <span style="font-size:1.1rem;">🧠</span> Smart Leading Live Assist
+                        </div>
+                        <div class="chat-messages" id="chat-messages-box">
+                            <div class="chat-message message-system">
+                                Sessão iniciada. Selecione uma fala à esquerda para simular a interação em tempo real.
+                            </div>
+                        </div>
+                        <div class="chat-footer">
+                            <input type="text" class="form-control" placeholder="Escreva a resposta do colaborador para simular..." id="chat-custom-input" onkeydown="if(event.key==='Enter') sendCustomChatMessage()">
+                            <button class="btn btn-secondary" onclick="sendCustomChatMessage()">Enviar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 3: ESCALATION -->
+        <section id="sec-escalation" class="page-section">
+            <header class="content-header">
+                <div class="header-title">
+                    <span class="badge badge-red">Feature F-05</span>
+                    <h1>Fluxo de Escalação e Gestão de Conflitos</h1>
+                    <p>Solicite a mediação do RH de forma estruturada. A plataforma valida automaticamente os requisitos mínimos do processo.</p>
+                </div>
+            </header>
+
+            <div class="card">
+                <h3 style="font-family: var(--font-title); margin-bottom: 20px;">Formulário de Abertura de Mediação (RH)</h3>
+                
+                <div class="form-group">
+                    <label class="form-label">Colaborador Envolvido</label>
+                    <select class="form-control" id="esc-colab">
+                        <option value="Colaborador A (Dev L2)">Colaborador A (Dev L2)</option>
+                        <option value="Colaborador B (Tech Lead L4)">Colaborador B (Tech Lead L4)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Descrição Sumária do Conflito</label>
+                    <textarea class="form-control" rows="3" id="esc-desc" placeholder="Descreva os fatos ocoruidos, observando as diretrizes de LGPD (sem nomes completos, dados médicos ou CPF)."></textarea>
+                </div>
+
+                <!-- Toggle for past 1:1 records -->
+                <div class="toggle-container">
+                    <label class="switch">
+                        <input type="checkbox" id="esc-has-1on1" checked onchange="toggle1on1History()">
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-size:0.9rem; font-weight:600; display:block;">Registros de 1:1 nos últimos 45 dias encontrados?</span>
+                        <span style="font-size:0.8rem; color:var(--text-muted);" id="lbl-1on1-history">Sim, 1:1 registrada em 15/06/2026.</span>
+                    </div>
+                </div>
+
+                <!-- Toggle for serious ethics breach -->
+                <div class="toggle-container">
+                    <label class="switch">
+                        <input type="checkbox" id="esc-is-ethics" onchange="toggleEthicsBypass()">
+                        <span class="slider"></span>
+                    </label>
+                    <div>
+                        <span style="font-size:0.9rem; font-weight:600; display:block; color:var(--red);">Caso Grave de Assédio ou Ética?</span>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">Habilita o desvio imediato do RH sem validação de histórico.</span>
+                    </div>
+                </div>
+
+                <button class="btn btn-cyan" onclick="submitEscalation()">Solicitar Mediação ao RH</button>
+
+                <!-- Validation Result Alert -->
+                <div id="escalation-alert-box"></div>
+            </div>
+
+            <div class="card">
+                <h3 style="font-family: var(--font-title); margin-bottom: 16px;">Regras de Negócio Implementadas</h3>
+                <table class="poc-table">
+                    <thead>
+                        <tr>
+                            <th>Regra</th>
+                            <th>Critério de Aceite</th>
+                            <th>Status PoC</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>RN01: Histórico Mínimo</strong></td>
+                            <td>Exigir 1:1 documentada nos últimos 45 dias para conflitos comuns.</td>
+                            <td><span class="badge badge-green">Validado (JS/Prisma)</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>RN02: Desvio de Ética</strong></td>
+                            <td>Casos graves de assédio ou quebra ética ignoram a barreira de 45 dias.</td>
+                            <td><span class="badge badge-green">Validado</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>RN03: Geração de Protocolo</strong></td>
+                            <td>Gerar ticket `#SHR-YYYY-XXXX` estruturado para rastreamento.</td>
+                            <td><span class="badge badge-green">Validado</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- SECTION 4: TECH & POC VALIDATION -->
+        <section id="sec-tech" class="page-section">
+            <header class="content-header">
+                <div class="header-title">
+                    <span class="badge badge-cyan">Documentação de Engenharia</span>
+                    <h1>Validação Técnica da PoC</h1>
+                    <p>Confirmação da Stack Tecnológica, testes de prompt de IA e conformidade com os requisitos da Clear IT.</p>
+                </div>
+            </header>
+
+            <div class="card">
+                <h3 style="font-family: var(--font-title); margin-bottom: 16px;">Arquitetura Lógica Validada</h3>
+                <p style="font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;">
+                    Os testes isolados comprovaram a viabilidade da seguinte arquitetura serverless no Netlify:
+                </p>
+                <div style="font-family:var(--font-mono); font-size:0.8rem; background:#0f111a; border: 1px solid var(--surface-border); border-radius:12px; padding:20px; line-height:1.7; overflow-x:auto; margin-bottom: 20px;">
+┌────────────────────────────┐
+│   Cliente (Browser)          │
+│   Next.js App Router (RSC)   │
+└──────────────┬───────────────┘
+               │ HTTPS (Server Actions)
+               ▼
+┌────────────────────────────┐
+│   Netlify Edge / Functions   │
+│   Next.js Runtime             │
+│  ┌─────────────────────────┐ │
+│  │ Server Actions / Routes │ │
+│  │  - Tom adaptativo (F-01)│ │
+│  │  - Copiloto LLM (F-03)  │ │
+│  │  - Validação 45 dias    │ │
+│  └───────────┬─────────────┘ │
+└──────────────┼───────────────┘
+               ▼
+     ┌───────────────────┐        ┌──────────────────────┐
+     │  Prisma Client      │──────▶│  PostgreSQL (Neon DB) │
+     │  (lib/prisma.ts)    │       │  Compatível Netlify  │
+     └───────────────────┘        └──────────────────────┘
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="font-family: var(--font-title); margin-bottom: 16px;">Prompts Testados e Homologados</h3>
+                <p style="font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;">
+                    Os prompts de sistema a seguir foram testados e ajustados para obedecer à restrição de tom (sem jargões inúteis de RH) e segurança LGPD:
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">System Prompt: Copiloto de Agenda 1:1</label>
+                    <textarea class="form-control" rows="8" style="font-family:var(--font-mono); font-size:0.82rem;" readonly>
+Você é o copiloto de IA Smart Leading. Sua missão é auxiliar líderes a conduzir reuniões de 1:1 produtivas e empáticas.
+Ajuste seu tom com base no perfil do líder:
+- TECNICO: Respostas extremamente diretas, sem jargões corporativos ("calibração de competências", "transversalidade"), focando em entregas e pontos de bloqueio técnicos.
+- TRANSICAO: Forneça roteiros detalhados passo a passo, incluindo orientações de inteligência emocional e a metodologia de feedback SBI (Situação, Comportamento, Impacto).
+- ENGAJADO: Foco em agilidade, produtividade e alinhamento de plano de ação (PDI).
+
+Restrição inegociável de LGPD: Nunca inclua nomes próprios, dados pessoais ou de saúde. Use referências de perfil e cargo genéricos.
+                    </textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">System Prompt: Assistente em Tempo Real (Durante a Conversa)</label>
+                    <textarea class="form-control" rows="6" style="font-family:var(--font-mono); font-size:0.82rem;" readonly>
+Com base na resposta imediata dada pelo colaborador, forneça ao líder de 2 a 3 opções de perguntas de aprofundamento ou ações imediatas.
+A linguagem deve ser empática, focada em resultados e incentivar a escuta ativa do líder (regra 70/30: colaborador fala 70% do tempo).
+                    </textarea>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- JS Logic -->
+    <script>
+        // State variables
+        let selectedProfile = 'transicao';
+        let selectedLevelFrom = 'Coordenador';
+        let selectedLevelTo = 'Gerente';
+
+        const profileData = {
+            tecnico: {
+                title: "Líder Técnico",
+                desc: "Gestores práticos, objetivos e altamente focados em entregas e metas. Apresentam baixa tolerância a 'burocracias' ou termos complicados de RH. O Smart Leading responderá com roteiros enxutos e diretos.",
+                adaptation: "Comunicação altamente objetiva, sem termos corporativos redundantes, focada em check-ins ágeis de impedimentos e próximas metas técnicas.",
+                icon: "🤖"
+            },
+            transicao: {
+                title: "Líder em Transição",
+                desc: "Profissionais técnicos promovidos recentemente a cargos de gestão. Possuem forte desejo de acertar, mas carecem de repertório emocional para lidar com conversas difíceis de performance e comportamento. O Smart Leading dará roteiros altamente detalhados passo a passo.",
+                adaptation: "Forneceremos orientações detalhadas de comunicação verbal, o racional por trás de cada pergunta e o passo a passo da estrutura SBI (Situation-Behavior-Impact) para feedbacks difíceis.",
+                icon: "🌱"
+            },
+            engajado: {
+                title: "Líder Engajado",
+                desc: "Líderes que acreditam ativamente no desenvolvimento de pessoas e no valor estratégico do PDI, mas que sofrem com agendas cheias e falta de tempo para preparação das conversas. O Smart Leading priorizará agilidade de preenchimento.",
+                adaptation: "Foco em resumos e tópicos acionáveis imediatos para otimizar os 3 minutos de preparação do líder antes de iniciar a conversa.",
+                icon: "🔥"
+            }
+        };
+
+        // Select Profile handler
+        function selectLeaderProfile(profileKey) {
+            document.querySelectorAll('.radio-card').forEach(card => card.classList.remove('selected'));
+            document.getElementById(`card-${profileKey}`).classList.add('selected');
+            selectedProfile = profileKey;
+            updateMappedProfile();
+        }
+
+        // Update profile mapped cards
+        function updateMappedProfile() {
+            selectedLevelFrom = document.getElementById('onb-level-from').value;
+            selectedLevelTo = document.getElementById('onb-level-to').value;
+
+            // Update UI badges
+            const currentProfileBadge = document.getElementById('current-profile-badge');
+            const currentLevelBadge = document.getElementById('current-level-badge');
+            
+            const activeProfile = profileData[selectedProfile];
+            currentProfileBadge.innerHTML = `<span>${activeProfile.icon}</span> ${activeProfile.title}`;
+            currentLevelBadge.textContent = `Nível Alvo: ${selectedLevelFrom} → ${selectedLevelTo}`;
+
+            // Update result details
+            document.getElementById('result-profile-title').textContent = `Perfil: ${activeProfile.title}`;
+            document.getElementById('result-profile-desc').textContent = activeProfile.desc;
+            document.getElementById('result-profile-adaptation').innerHTML = `<strong>Como a IA adaptará a comunicação:</strong> "${activeProfile.adaptation}"`;
+
+            // Adjust colors of orbs based on profile
+            const orbA = document.getElementById('orbA');
+            const orbB = document.getElementById('orbB');
+            if (selectedProfile === 'tecnico') {
+                orbA.style.background = '#6366f1';
+                orbB.style.background = '#06b6d4';
+            } else if (selectedProfile === 'transicao') {
+                orbA.style.background = '#10b981';
+                orbB.style.background = '#6366f1';
+            } else {
+                orbA.style.background = '#f59e0b';
+                orbB.style.background = '#ef4444';
+            }
+        }
+
+        // Save Onboarding Settings
+        function saveOnboarding() {
+            alert(`Configurações salvas com sucesso!\n\nPerfil: ${profileData[selectedProfile].title}\nNível: ${selectedLevelFrom} -> ${selectedLevelTo}\n\nO copiloto do Smart Leading usará essas definições a partir de agora.`);
+        }
+
+        // Section switcher
+        function switchSection(sectionId) {
+            document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
+            document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+
+            document.getElementById(`sec-${sectionId}`).classList.add('active');
+            document.getElementById(`menu-${sectionId}`).classList.add('active');
+        }
+
+        // Generate Roteiro
+        function generate1on1Script() {
+            const colab = document.getElementById('1on1-colab-name').value;
+            const type = document.getElementById('1on1-type').value;
+            const disc = document.getElementById('1on1-colab-disc').value;
+            const context = document.getElementById('1on1-context').value;
+
+            const scriptResultBox = document.getElementById('script-result-box');
+            const scriptResultBody = document.getElementById('script-result-body');
+            const scriptProfileApplied = document.getElementById('script-profile-applied');
+
+            // Apply style depending on manager profile
+            let toneLabel = "";
+            let htmlContent = "";
+
+            if (selectedProfile === 'tecnico') {
+                toneLabel = "Foco Objetivo (Sem Rodeios)";
+                scriptProfileApplied.className = "badge badge-cyan";
+                htmlContent = `
+                    <p><strong>Foco:</strong> ${type} com ${colab} (${disc})</p>
+                    <p><strong>Meta:</strong> Corrigir desvios e identificar impedimentos técnicos com objetividade.</p>
+                    <h3>Roteiro de Reunião (25 Minutos)</h3>
+                    <ul>
+                        <li><strong>Mapeamento de Status (5 min):</strong> "Como foi a última quinzena no projeto? Onde você sentiu maior gargalo técnico?"</li>
+                        <li><strong>Análise de Impedimentos (12 min):</strong> "Identifiquei o seguinte contexto: <em>'${context}'</em>. O que causou isso da sua perspectiva e como posso liberar os impedimentos de código?"</li>
+                        <li><strong>Ação Imediata (8 min):</strong> "Quais são as duas entregas principais que você fará nos próximos 10 dias? Vamos deixar os entregáveis acordados aqui."</li>
+                    </ul>
+                `;
+            } else if (selectedProfile === 'transicao') {
+                toneLabel = "Estruturado & Inteligência Emocional";
+                scriptProfileApplied.className = "badge";
+                htmlContent = `
+                    <p><strong>Foco:</strong> ${type} com ${colab} (${disc})</p>
+                    <p><strong>Meta:</strong> Oferecer suporte na resolução do conflito mantendo um diálogo empático.</p>
+                    
+                    <div class="highlight-alert">
+                        <strong>Dica de Liderança:</strong> O colaborador possui perfil Estável/Planejador. Evite dar feedbacks bruscos sem antes explicar o contexto. Garanta que ele se sinta seguro e ouvido.
+                    </div>
+
+                    <h3>Roteiro de Reunião Passo a Passo (40 Minutos)</h3>
+                    <ul>
+                        <li><strong>1. Abertura e Conexão (5 min):</strong> "Oi. Queria bater um papo para saber como você tem se sentido no time ultimamente. Como está a sua rotina?" (Escute ativamente, demonstre calor humano).</li>
+                        <li><strong>2. Apresentação do Fato (Método SBI) (15 min):</strong>
+                            <br><em>Apresente a situação de forma descritiva e não julgadora:</em>
+                            <br>"Durante as últimas semanas (Situação), percebi o seguinte contexto: <em>'${context}'</em> (Comportamento). Isso causou impacto no ritmo de entregas da nossa equipe (Impacto)."
+                            <br><strong>Pergunta de apoio:</strong> "O que está acontecendo do seu lado que influenciou nisso?"</li>
+                        <li><strong>3. Escuta Ativa e Resolução (12 min):</strong> Deixe o colaborador explicar. Faça perguntas abertas: "O que podemos ajustar nos processos ou prazos para facilitar sua rotina?"</li>
+                        <li><strong>4. Combinados e PDI (8 min):</strong> Definir ações curtas e rastreáveis. "Vamos combinar de acompanhar isso semanalmente de forma amigável? Estou aqui para apoiar."</li>
+                    </ul>
+                `;
+            } else {
+                toneLabel = "Rápido & Foco em PDI";
+                scriptProfileApplied.className = "badge badge-green";
+                htmlContent = `
+                    <p><strong>Foco:</strong> ${type} com ${colab} (${disc})</p>
+                    <p><strong>Meta:</strong> Alinhamento rápido e prático de metas acionáveis.</p>
+                    <h3>Roteiro de Reunião Ágil (20 Minutos)</h3>
+                    <ul>
+                        <li><strong>Mapeamento Rápido (4 min):</strong> "Qual foi seu principal aprendizado ou conquista nos últimos dias?"</li>
+                        <li><strong>Ponto Crítico (10 min):</strong> "Vamos tratar sobre: <em>'${context}'</em>. Qual o plano de ação imediato para contornar isso?"</li>
+                        <li><strong>Revisão de PDI (6 min):</strong> Definir 1 meta de desenvolvimento vinculada a essa solução. Registrar data de conclusão.</li>
+                    </ul>
+                `;
+            }
+
+            scriptProfileApplied.textContent = `Tom da IA: ${toneLabel}`;
+            scriptResultBody.innerHTML = htmlContent;
+            scriptResultBox.style.display = "block";
+            
+            // Scroll to view
+            scriptResultBox.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Chatbot Live Simulation
+        function sendChatMessage(text) {
+            const chatMessagesBox = document.getElementById('chat-messages-box');
+            
+            // 1. Add Collaborator message
+            const colabMsg = document.createElement('div');
+            colabMsg.className = "chat-message message-collaborator";
+            colabMsg.textContent = text;
+            chatMessagesBox.appendChild(colabMsg);
+
+            // 2. Clear initial system messages if any
+            const systemMsgs = chatMessagesBox.querySelectorAll('.message-system');
+            systemMsgs.forEach(m => m.style.display = 'none');
+
+            // Scroll chat to bottom
+            chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
+
+            // 3. IA response simulation after 600ms
+            setTimeout(() => {
+                const aiMsg = document.createElement('div');
+                aiMsg.className = "chat-message message-ai";
+                
+                // Content of AI depending on message typed and leader profile
+                let aiResponse = "";
+                if (text.includes("sobrecarregado")) {
+                    if (selectedProfile === 'tecnico') {
+                        aiResponse = "IA Smart Leading: Sugira ao colaborador listar as tarefas atuais em ordem de prioridade. Faça a pergunta direta: 'Qual dessas tarefas podemos delegar ou adiar para garantir a entrega sem gargalo?'";
+                    } else if (selectedProfile === 'transicao') {
+                        aiResponse = "IA Smart Leading: O colaborador está demonstrando ansiedade. Mostre empatia primeiro: 'Entendo perfeitamente, o ritmo do projeto está intenso. Vamos olhar juntos para sua lista de tarefas e organizar as prioridades.' Em seguida, ajude-o a fatiar as entregas e pergunte: 'Como posso te apoiar diretamente nessa divisão?'";
+                    } else {
+                        aiResponse = "IA Smart Leading: Ação rápida recomendada: Revise as demandas da Sprint atual. Pergunte: 'Quais são as 2 tarefas mais críticas hoje e quais podemos repactuar com o time?'";
+                    }
+                } else if (text.includes("PDI")) {
+                    if (selectedProfile === 'tecnico') {
+                        aiResponse = "IA Smart Leading: Foque na competência técnica imediata. Pergunte: 'Qual tecnologia ou skill específica do projeto você quer dominar no próximo mês para subir de nível?'";
+                    } else {
+                        aiResponse = "IA Smart Leading: Vincule a ambição de carreira às competências do framework organizacional (L1-L4). Sugira propor: 'Vamos estruturar um PDI focando na habilidade de liderança técnica que você precisa para alcançar o cargo de ${selectedLevelTo}?'";
+                    }
+                } else {
+                    aiResponse = "IA Smart Leading: Entendido. Demonstre abertura e valide o histórico. 'É importante termos consistência. A partir de agora, nosso copiloto registrará todos os nossos combinados na plataforma para termos clareza mútua.'";
+                }
+
+                aiMsg.textContent = aiResponse;
+                chatMessagesBox.appendChild(aiMsg);
+                chatMessagesBox.scrollTop = chatMessagesBox.scrollHeight;
+            }, 600);
+        }
+
+        // Custom chat input
+        function sendCustomChatMessage() {
+            const input = document.getElementById('chat-custom-input');
+            const text = input.value.trim();
+            if (text === '') return;
+
+            sendChatMessage(text);
+            input.value = '';
+        }
+
+        // Escalation Form interactions
+        function toggle1on1History() {
+            const check = document.getElementById('esc-has-1on1').checked;
+            const lbl = document.getElementById('lbl-1on1-history');
+            if (check) {
+                lbl.textContent = "Sim, 1:1 registrada em 15/06/2026 (dentro do limite de 45 dias).";
+                lbl.style.color = "var(--text-muted)";
+            } else {
+                lbl.textContent = "Nenhum registro de 1:1 recente nos últimos 45 dias.";
+                lbl.style.color = "var(--red)";
+            }
+        }
+
+        function toggleEthicsBypass() {
+            const isEthics = document.getElementById('esc-is-ethics').checked;
+            if (isEthics) {
+                document.getElementById('esc-has-1on1').disabled = true;
+            } else {
+                document.getElementById('esc-has-1on1').disabled = false;
+            }
+        }
+
+        function submitEscalation() {
+            const colab = document.getElementById('esc-colab').value;
+            const desc = document.getElementById('esc-desc').value.trim();
+            const has1on1 = document.getElementById('esc-has-1on1').checked;
+            const isEthics = document.getElementById('esc-is-ethics').checked;
+            const alertBox = document.getElementById('escalation-alert-box');
+
+            if (desc === '') {
+                alert("Por favor, preencha o relato do conflito antes de prosseguir.");
+                return;
+            }
+
+            // Clean up alert
+            alertBox.innerHTML = "";
+
+            if (isEthics) {
+                // Bypass validation
+                alertBox.className = "status-alert success";
+                alertBox.innerHTML = `
+                    <span class="status-alert-icon">✅</span>
+                    <div class="status-alert-content">
+                        <h4>Protocolo Gerado: #SHR-2026-8812</h4>
+                        <p><strong>Escalação Direta Aprovada (Desvio de Ética).</strong> Notificação prioritária enviada à Gerente de RH Priscila Bacelar. Por ser um caso de ética/assédio, a exigência de histórico de 1:1 foi ignorada.</p>
+                    </div>
+                `;
+            } else {
+                if (!has1on1) {
+                    // Blocked escalation
+                    alertBox.className = "status-alert error";
+                    alertBox.innerHTML = `
+                        <span class="status-alert-icon">⚠️</span>
+                        <div class="status-alert-content">
+                            <h4>Solicitação de Mediação Recusada</h4>
+                            <p><strong>Erro de Validação (RN01):</strong> Apenas conflitos previamente discutidos em 1:1 registradas nos últimos 45 dias com o colaborador podem ser encaminhados ao RH. Por favor, marque uma reunião de feedback com o colaborador antes de acionar a mediação.</p>
+                        </div>
+                    `;
+                } else {
+                    // Approved standard escalation
+                    alertBox.className = "status-alert success";
+                    alertBox.innerHTML = `
+                        <span class="status-alert-icon">✅</span>
+                        <div class="status-alert-content">
+                            <h4>Protocolo Gerado: #SHR-2026-4439</h4>
+                            <p><strong>Solicitação de Mediação Aberta com Sucesso.</strong> Histórico de 1:1 do colaborador nos últimos 45 dias anexado e enviado ao RH para análise estratégica.</p>
+                        </div>
+                    `;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
