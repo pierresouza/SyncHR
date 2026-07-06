@@ -27,11 +27,11 @@ O **Smart Leading (Clear One IA)** é um copiloto inteligente de IA criado no **
 | ID | Título | Status | Responsável | Notas |
 |---|---|---|---|---|
 | F-01 | Onboarding & Perfil de Liderança | Pronto para Dev | Pierre / Ketelin | Configura perfil de líder (Técnico, Transição, Engajado) e níveis |
-| F-02 | Perfil do Colaborador (Testes & Levels) | A Fazer | — | Testes de perfil e mapeamento com frameworks de níveis de cargo |
-| F-03 | Copiloto de 1:1 e Feedbacks | Pronto para Dev | Pierre / Ketelin | Auxílio inteligente em 3 momentos: antes (roteiros), durante (tempo real) e após |
+| F-02 | Perfil do Colaborador (Testes & DISC) | Pronto para Dev | Pierre / Ketelin | Mapeamento DISC do liderado e sugestões dinâmicas de pautas da IA |
+| F-03 | Copiloto de 1:1 e Feedbacks | Pronto para Dev | Pierre / Ketelin | Auxílio inteligente: antes (roteiros), durante (tempo real) e após (sugestões e banco) |
 | F-04 | Evolução Contínua de PDI | A Fazer | — | Sugestão e acompanhamento contínuo de PDIs entre ciclos |
 | F-05 | Fluxo de Escalação e Gestão de Conflitos | Pronto para Dev | Gustavo / Lucas | Canal de escalação claro e mediação de conflitos vinculada a histórico |
-| F-06 | Dashboard Analítico e Sync HR | A Fazer | — | Visão consolidada para RH/C-Level e sincronização líderes-colaboradores |
+| F-06 | Dashboard Analítico e Sync HR | Pronto para Dev | Pierre / Ketelin | Painel RH de Conflitos, Fluxo de Resolução, Admin Panel de Prompts e LGPD |
 
 ## 4. Especificações Ativas (Em Detalhe)
 
@@ -55,15 +55,19 @@ Como **Líder**, quero passar por um fluxo de onboarding na plataforma web para 
 
 ---
 
-### F-02: Perfil do Colaborador (A Fazer)
+### F-02: Perfil do Colaborador (Testes & DISC) (Pronto para Dev)
 
 #### História do Usuário
-- Como **Líder**
-- Quero **visualizar o nível e perfil comportamental do meu liderado**
-- Para que **eu adapte os roteiros ao contexto real de cada colaborador**
+Como **Líder**, quero que meu liderado passe por um mapeamento de perfil comportamental DISC no onboarding (ou que eu possa selecionar o perfil dele manualmente) para que o Smart Leading sugira pautas de 1:1 altamente personalizadas baseadas no seu estilo de comunicação e necessidades.
 
 #### Critérios de Aceite
-- CAs: a definir no Sprint de especificação desta feature
+1. **Coleta de Perfil DISC no Onboarding:** O sistema deve oferecer um fluxo de preenchimento (mini-questionário comportamental) ou seleção direta de perfil DISC (Dominante/Executor, Influente/Comunicador, Estável/Planejador, Analítico/Conforme) para o liderado.
+2. **Pautas Sugeridas Dinamicamente:** Assim que o líder seleciona um colaborador para preparar a 1:1, a IA deve sugerir automaticamente 3 tópicos/pautas de conversa calibrados para o perfil DISC dele (ex: se Estável, focar em segurança psicológica e ritmo; se Dominante, focar em entregas rápidas e autonomia).
+3. **Cruzamento com Cargo e Nível (Framework de Levels):** O sistema deve cruzar a competência do nível do cargo (L1 a L4) com o perfil DISC para refinar a complexidade das perguntas iniciais geradas.
+
+#### Regras de Negócio
+* O preenchimento do perfil DISC do colaborador é opcional no onboarding, mas caso não preenchido, o líder deve selecionar o perfil correspondente na tela de preparação da 1:1 para habilitar a calibração de pautas.
+* **Anonimização no Front:** Os nomes dos perfis e descrições técnicas de comportamento devem seguir guias organizacionais positivos e construtivos, evitando rótulos depreciativos.
 
 ---
 
@@ -112,15 +116,23 @@ Como **Colaborador / Líder**, quero ter acesso a um canal estruturado para soli
 
 ---
 
-### F-06: Dashboard Analítico e Sync HR (A Fazer)
+### F-06: Dashboard Analítico e Sync HR (Pronto para Dev)
 
 #### História do Usuário
-- Como **Gerente de RH (Priscila Bacelar)**
-- Quero **uma visão consolidada da frequência e qualidade das 1:1s por líder**
-- Para que **eu tome decisões de clima com base em dados, não em percepções**
+Como **Gerente de RH (Priscila Bacelar) e Administrador**, quero ter acesso a um painel consolidado para gerenciar prompts da IA, analisar transcrições persistidas em banco de dados, mapear conflitos de forma automatizada e acionar um fluxo de mediação de conflitos resolvidos, de modo que o clima da Clear IT seja gerido estrategicamente e com plena segurança LGPD.
 
 #### Critérios de Aceite
-- CAs: a definir no Sprint de especificação desta feature
+1. **Armazenamento de Transcrições em Banco de Dados:** Toda a transcrição da reunião de 1:1/feedback deve ser salva de forma estruturada em uma tabela/coleção do banco de dados (associada ao ID da 1:1, data, ID do líder e ID do colaborador).
+2. **Sugestões de Assuntos pós-1:1 e Aprendizado Contínuo:** Após cada 1:1, a IA deve avaliar a transcrição em comparação com o roteiro gerado e sugerir assuntos ou abordagens futuras mais eficientes. O sistema deve alimentar o perfil do colaborador com estas preferências para calibrar os próximos roteiros de forma inteligente.
+3. **Mapeamento Automatizado de Conflitos:** A IA deve varrer a transcrição da reunião buscando indícios de atrito, insatisfação grave ou sobrecarga, gerando um registro automático na tabela de Conflitos se encontrar algo relevante.
+4. **Painel de Conflitos do RH com Fluxo de Resolução:** Uma aba protegida e acessível apenas pelo RH que exiba todos os conflitos detectados/escalados. O RH deve poder atualizar o status do conflito (ex: de PENDENTE para EM_RESOLUCAO ou SOLUCIONADO) através de um fluxo com notas de mediação e checklist de encerramento.
+5. **Painel do Administrador para Fine-Tuning de Prompts:** Área administrativa para visualizar e editar os prompts de sistema da IA (Roteiro e Copiloto Live). Modificações salvas devem atualizar as chamadas de IA imediatamente.
+6. **Controle de Transmissão de Dados Externos:** A interface administrativa deve exibir orientações e um fluxo para exportar dados anonimizados e encriptados caso as informações precisem ser enviadas para empresas parceiras, respeitando os direitos do colaborador.
+
+#### Regras de Negócio
+* **Acesso Restrito:** Apenas usuários com a flag `role === 'RH'` podem acessar a visualização de conflitos detalhada. Líderes normais não têm acesso a essa aba.
+* **Segurança e LGPD (Consentimento):** Antes de iniciar a transcrição ou o processamento de áudio/texto de uma 1:1, o sistema deve registrar o consentimento explícito do colaborador (Opt-in) salvo no banco de dados.
+* **Fine-Tuning Localizável:** O prompt modelo (fine-tuning) deve residir no banco de dados para evitar deploys desnecessários ao ajustar diretrizes de comunicação da IA.
 
 ---
 

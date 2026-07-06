@@ -181,4 +181,111 @@ if (!recent1on1 && input.incidentType !== 'ETHICS_VIOLATION' && input.incidentTy
 ```
 
 ### 5.5 Segurança e Conformidade (LGPD)
-Para garantir conformidade de privacidade, a PoC implementou um validador de input que bloqueia o processamento em LLMs se forem detectados padrões como CPFs, e-mails ou palavras sensíveis do RH relacionadas a prontuários médicos e advertências disciplinares nominativas.
+Para garantir conformidade de privacidade, a PoC implementou um validador de input que bloqueia o processamento em LLMs se forem detectados padrões como CPFs, e-mails ou palavras sensíveis do RH relacionadas a prontuários médicos e advertências disciplinares nominativas.
+
+### 5.6 Nova Modelagem de Dados (Expansão json-server / db.json)
+Para viabilizar a prototipação rápida com dados mockados, modelou-se a seguinte estrutura de dados JSON compatível com o `json-server`:
+
+```json
+{
+  "leaders": [
+    {
+      "id": 1,
+      "email": "lider.tech@clearit.com.br",
+      "name": "Gestor Principal",
+      "profile": "TECNICO",
+      "levelFrom": "Coordenador",
+      "levelTo": "Gerente",
+      "disc": "D"
+    }
+  ],
+  "collaborators": [
+    {
+      "id": 101,
+      "name": "Colaborador A",
+      "level": "L2",
+      "area": "Engenharia",
+      "disc": "S",
+      "notes": "Prefere comunicações tranquilas e prazos detalhados.",
+      "feedbackHistory": [
+        "Identificada sobrecarga com prazos na sprint anterior. IA sugeriu fatiar entregas."
+      ]
+    }
+  ],
+  "oneOnOnes": [
+    {
+      "id": 1001,
+      "date": "2026-06-25T14:00:00Z",
+      "leaderId": 1,
+      "collaboratorId": 101,
+      "context": "Sobrecarregado com demandas da Sprint",
+      "transcription": "Colaborador: Estou muito sobrecarregado e não sei se consigo entregar tudo a tempo. Líder: Vamos ver o que podemos organizar.",
+      "summary": "Colaborador expressou sobrecarga. Acordado fatiar demandas.",
+      "pdiActions": "Organizar backlog semanalmente com o líder.",
+      "aiEvaluation": "O roteiro gerado focou muito na entrega técnica. Sugere-se dedicar mais tempo na escuta de fatores ambientais (ritmo de trabalho) da próxima vez.",
+      "nextSuggestions": [
+        "Acompanhar o progresso do fatiamento das tarefas",
+        "Investigar se a sobrecarga diminuiu na próxima semana"
+      ]
+    }
+  ],
+  "conflicts": [
+    {
+      "id": 501,
+      "protocol": "SHR-2026-1049",
+      "date": "2026-06-25T14:30:00Z",
+      "oneOnOneId": 1001,
+      "collaboratorId": 101,
+      "incidentType": "PERFORMANCE_DISPUTE",
+      "description": "Colaborador em atrito por conta de sobrecarga sistemática nas sprints de engenharia.",
+      "status": "RESOLVED",
+      "resolutionNotes": "Realizado alinhamento de capacidade de equipe. Rebalanceamento efetuado.",
+      "resolutionDate": "2026-06-28T16:00:00Z"
+    }
+  ],
+  "prompts": [
+    {
+      "id": "master-prompt",
+      "name": "Prompt do Copiloto Smart Leading",
+      "systemPrompt": "Você é o copiloto de IA Smart Leading. Sua missão é auxiliar líderes a conduzir reuniões de 1:1... Restrição de LGPD: Nunca use nomes...",
+      "lastUpdated": "2026-07-06T18:00:00Z"
+    }
+  ]
+}
+```
+
+### 5.7 Fluxo de Processamento de Transcrições e Análise de Conflitos
+A transcrição das 1:1 é processada em um pipeline composto por três etapas:
+1. **Anonimização (Filtro LGPD):** O input bruto passa pela sanitização regex de e-mails, CPFs e blacklist de termos médicos ou advertências nominativas.
+2. **Avaliação da Conversa (Post-1:1 Learning):** O motor de IA lê a transcrição e o roteiro inicial proposto, gera um feedback avaliativo sobre a condução da reunião e atualiza as `feedbackHistory` do colaborador para otimizar roteiros subsequentes.
+3. **Varredura e Extração de Conflitos:** Um módulo de análise sintática e semântica busca disparadores de conflito (ex: termos como *"atrito"*, *"sobrecarregado"*, *"demissão"*, *"injusto"*, *"briga"*). Caso a pontuação de criticidade seja atingida, um chamado de conflito é criado na tabela `conflicts` com status `PENDING`, disponibilizado imediatamente no painel do RH.
+
+### 5.8 Administração de Prompts (Fine-Tuning Dinâmico)
+Para permitir ajustes na inteligência artificial sem alteração de código fonte, os prompts do sistema são armazenados no banco de dados (`settings`/`prompts`).
+- **Endpoint da API:** `GET /prompts` e `PATCH /prompts/:id`
+- **Fluxo de Inicialização:** Durante a inicialização de qualquer requisição de IA (como geração de roteiro ou assistência em tempo real), a API Server Action carrega o prompt mais recente do banco de dados, compõe a requisição com os metadados do líder e do colaborador (nível, DISC) e submete à API do Gemini.
+- **Admin Panel:** Uma interface administrativa CRUD permite a leitura, edição direta e publicação de novas diretrizes operacionais de prompt com registro de histórico de versões.
+
+### 5.9 Estudo Técnico: Envio de Dados Externos (Inter-empresas)
+Para transmitir relatórios consolidados a outras empresas parceiras, o SyncHR adota o padrão de conformidade e segurança detalhado abaixo:
+1. **Camada de Transporte (Segurança):** Uso obrigatório de HTTPS com autenticação mútua TLS (mTLS) ou chaves de API rotativas integradas ao cabeçalho HTTP (`Authorization: Bearer <token>`).
+2. **Anonimização Criptográfica:** Os dados de identificação do colaborador e do líder são convertidos em hashes irreversíveis (SHA-256 combinados com um salt gerido nas variáveis de ambiente da Clear IT) ou totalmente removidos do payload (LGPD Art. 12).
+3. **Payload Estruturado:** Transmissão em formato JSON padronizado com criptografia simétrica AES-256-GCM para os dados de texto (transcrições/anotações) caso sejam confidenciais, conforme o modelo abaixo:
+
+```json
+{
+  "sender_org": "Clear IT",
+  "recipient_org": "Parceira Consultoria S/A",
+  "transmission_date": "2026-07-06T21:15:00Z",
+  "collaborator_pseudonym": "hash_8f7b2c9d...",
+  "disc_profile": "S",
+  "evaluation_metrics": {
+    "collaboration_score": 8.5,
+    "conflict_risk": "low"
+  },
+  "encrypted_data": "aes_gcm_ciphertext_goes_here...",
+  "encryption_iv": "iv_vector_hex..."
+}
+```
+4. **Registro de Logs de Consentimento:** O banco de dados mantém uma trilha de auditoria imutável registrando a data, hora, ID do colaborador e a versão do termo de consentimento assinado pelo titular que permitiu a transferência dos dados para fora do ambiente corporativo primário.
+
