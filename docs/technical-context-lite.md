@@ -5,9 +5,9 @@
 ## 1. Stack Tecnológica
 
 - **Linguagem:** TypeScript (strict mode habilitado em todo o projeto).
-- **Framework:** Next.js (App Router), com React Server Components como padrão e Client Components apenas onde houver interatividade real.
-- **Banco de Dados:** Prisma como ORM, sobre PostgreSQL. *(Prisma não é o banco em si, é a camada de acesso — assumindo Postgres por ser o par natural do Prisma e compatível com Netlify DB (Neon) ou Neon/Supabase direto. Ajustar se vocês já tiverem um provedor definido.)*
-- **Infraestrutura:** Netlify (build e hospedagem do Next.js via Netlify's Next.js Runtime, API routes/Server Actions rodando como Netlify Functions, variáveis de ambiente e secrets gerenciados no painel do Netlify).
+- **Framework:** Next.js (App Router) rodando no cliente para interatividade fluida da interface.
+- **Armazenamento de Dados:** Dados mockados localmente persistidos no `localStorage` do navegador, eliminando dependências de servidores ou serviços de banco de dados externos ativos para máxima portabilidade.
+- **Infraestrutura:** Netlify para build e hospedagem estática, permitindo a execução offline do dashboard.
 
 ## 2. Padrões de Código (Code Standards)
 
@@ -18,62 +18,53 @@
   - Componentes React: PascalCase (`UserCard.tsx`), um componente principal por arquivo.
   - Funções, variáveis, hooks: camelCase (`useOnionSession`, `getSessionById`).
   - Tipos e interfaces: PascalCase, sem prefixo `I` (`SessionRecord`, não `ISessionRecord`).
-  - Modelos Prisma: PascalCase no schema (`model Session`), mapeados para snake_case no banco via `@@map`.
+  - Modelos no LocalStorage: PascalCase/camelCase mapeados para JSON de forma estruturada.
 - **Estrutura de pastas (Next.js App Router):**
   ```
   src/
     app/                # rotas, layouts, route handlers
     components/         # componentes de UI reutilizáveis
-    lib/                # clients (prisma, llm), utils puros
-    server/             # server actions, casos de uso
+    lib/                # clients (local storage wrappers, llm), utils puros
+    server/             # casos de uso e mocks locais
     types/              # tipos compartilhados
-  prisma/
-    schema.prisma
-    migrations/
   ```
-- **Testes:** Vitest para unitários/integração (services, lib, server actions); Playwright para E2E dos fluxos críticos. Cobertura mínima recomendada: 70% em `lib/` e `server/`.
+- **Testes:** Vitest para unitários/integração (validador de dados, mocks); Playwright para E2E dos fluxos críticos de onboarding e segurança. Cobertura mínima recomendada: 70%.
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `refactor:`), habilitando changelog automático.
-- **Migrations:** toda alteração de schema passa por `prisma migrate dev` local e `prisma migrate deploy` no pipeline de deploy — nunca editar o banco de produção manualmente.
 - **Variáveis de ambiente:** validadas em runtime com Zod (`env.ts`), nunca acessadas via `process.env` direto nos componentes/rotas.
 
 ## 3. Arquitetura Lógica (Visão Simplificada)
 
 ```
-┌────────────────────────────┐
-│   Cliente (Browser)          │
-│   Next.js App Router (RSC)   │
-└──────────────┬───────────────┘
-               │ HTTPS
-               ▼
-┌────────────────────────────┐
-│   Netlify Edge / Functions   │
-│   Next.js Runtime             │
-│  ┌─────────────────────────┐ │
-│  │ Route Handlers /          │ │
-│  │ Server Actions             │ │
-│  │  - @onion orquestrador    │ │
-│  │  - @product / @engineer   │ │
-│  │  - @meta / @docs          │ │
-│  └───────────┬─────────────┘ │
-└──────────────┼───────────────┘
-               ▼
-     ┌───────────────────┐        ┌──────────────────────┐
-     │  Prisma Client      │──────▶│  PostgreSQL (Neon/     │
-     │  (lib/prisma.ts)    │       │  Supabase/Netlify DB)  │
-     └───────────────────┘        └──────────────────────┘
-               │
-               ▼
-     ┌───────────────────┐
-     │  Provedor de LLM     │  (chamadas via lib/llm.ts,
-     │  (API externa)       │   nunca direto do client)
-     └───────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                      Cliente (Browser)                 │
+│                                                        │
+│   ┌────────────────────────────────────────────────┐   │
+│   │             Interface (Next.js components)      │   │
+│   └───────────────────────┬────────────────────────┘   │
+│                           │ Leitura/Escrita            │
+│                           ▼                            │
+│   ┌────────────────────────────────────────────────┐   │
+│   │   Mock Storage Manager (lib/storage.ts)        │   │
+│   └───────────────────────┬────────────────────────┘   │
+│                           │ Criptografia/Persistência  │
+│                           ▼                            │
+│   ┌────────────────────────────────────────────────┐   │
+│   │       LocalStorage / SessionStorage Mocks      │   │
+│   └────────────────────────────────────────────────┘   │
+└───────────────────────────┬────────────────────────────┘
+                            │ Chamada de API Segura
+                            ▼
+                  ┌───────────────────┐
+                  │  Provedor de LLM     │  (chamadas via lib/llm.ts,
+                  │  (API externa)       │   nunca direto do client)
+                  └───────────────────┘
 ```
 
 - **Camada de apresentação:** Next.js App Router, Server Components por padrão; Client Components só para interações (ex: chat em tempo real com o agente).
-- **Camada de aplicação:** Server Actions/Route Handlers implementam as personas do Onion (`@onion`, `@product`, `@engineer`, `@meta`, `@docs`) como casos de uso em `src/server/`.
-- **Camada de dados:** Prisma como única porta de acesso ao banco; sessões, ciclos (`business-context`, `technical-context`) e knowledge base passam a ser registros no banco em vez de arquivos Markdown soltos — Markdown continua sendo o *formato de conteúdo* dentro dos campos, mas a persistência e versionamento de estado viram tabelas (`Session`, `Cycle`, `KnowledgeBaseEntry`).
+- **Camada de aplicação:** Mocks locais implementam as personas do Onion (`@onion`, `@pm`, `@frontend`, `@backend`, `@security`, `@testing`, `@validator`) como casos de uso em `src/server/`.
+- **Camada de dados:** `lib/storage.ts` gerencia de forma segura as gravações e leituras em strings serializadas em JSON no `localStorage`.
 - **Camada externa:** integração com provedor de LLM isolada em `lib/llm.ts`, nunca chamada diretamente do client (evita expor API keys).
-- **Deploy:** push na branch principal → build no Netlify → `prisma migrate deploy` no pipeline → deploy do Next.js runtime.
+- **Deploy:** push na branch principal → build no Netlify → deploy da aplicação estática e funções edge.
 
 ## 4. Planos de Implementação Ativos
 
@@ -109,82 +100,128 @@ Com base na resposta imediata dada pelo colaborador, forneça ao líder de 2 a 3
 A linguagem deve ser empática, focada em resultados e incentivar a escuta ativa do líder (regra 70/30: colaborador fala 70% do tempo).
 ```
 
-### 5.3 Modelagem de Dados (Prisma Schema)
+### 5.3 Modelagem de Dados (Estrutura LocalStorage JSON)
 
-O esquema a seguir modela o suporte para onboarding de liderança (F-01), logs de 1:1 (F-03) e as validações de escalação para o RH (F-05):
+O estado da aplicação é armazenado e persistido de forma estruturada no `localStorage` do navegador utilizando as seguintes chaves de dados:
 
-```prisma
-model Leader {
-  id        Int        @id @default(autoincrement())
-  email     String     @unique
-  name      String
-  profile   String     // 'TECNICO' | 'TRANSICAO' | 'ENGAJADO'
-  levelFrom String     // Nível atual (ex: 'Coordenador')
-  levelTo   String     // Nível de destino (ex: 'Gerente')
-  oneOnOnes OneOnOne[]
-}
-
-model Collaborator {
-  id        Int        @id @default(autoincrement())
-  level     String     // 'L1' | 'L2' | 'L3' | 'L4'
-  area      String     // Área profissional (ex: 'Engenharia')
-  oneOnOnes OneOnOne[]
-}
-
-model OneOnOne {
-  id             Int          @id @default(autoincrement())
-  date           DateTime     @default(now())
-  leaderId       Int
-  leader         Leader       @relation(fields: [leaderId], references: [id])
-  collaboratorId Int
-  collaborator   Collaborator @relation(fields: [collaboratorId], references: [id])
-  context        String
-  summary        String?
-  pdiActions     String?
-  escalations    Escalation[]
-}
-
-model Escalation {
-  id             Int          @id @default(autoincrement())
-  protocol       String       @unique
-  date           DateTime     @default(now())
-  oneOnOneId     Int?
-  oneOnOne       OneOnOne?    @relation(fields: [oneOnOneId], references: [id])
-  collaboratorId Int
-  incidentType   String       // 'PERFORMANCE_DISPUTE' | 'EXPECTATION_ALIGNMENT' | 'HARASSMENT' | 'ETHICS_VIOLATION'
-  description    String
-  status         String       // 'PENDING' | 'ANALYSIS' | 'RESOLVED'
+#### A. Chave `synchr_leader_profile` (Perfil do Líder Logado)
+```json
+{
+  "id": 1,
+  "email": "lider.tech@clearit.com.br",
+  "name": "Gestor Principal",
+  "profile": "TRANSICAO",
+  "levelFrom": "Coordenador",
+  "levelTo": "Gerente"
 }
 ```
 
-### 5.4 Query de Validação da Regra de Escalação (RN01)
+#### B. Chave `synchr_collaborators` (Lista de Liderados com DISC)
+```json
+[
+  {
+    "id": 101,
+    "name": "Colaborador A",
+    "level": "L2",
+    "area": "Engenharia",
+    "disc": "S",
+    "notes": "Estável. Prefere segurança e orientações claras de processo.",
+    "feedbackHistory": [
+      "Sobrecarga de prazos sinalizada na sprint passada."
+    ]
+  }
+]
+```
 
-Lógica executada na Server Action ao solicitar a mediação ao RH. Valida se o colaborador teve ao menos uma conversa documentada nos últimos 45 dias:
+#### C. Chave `synchr_one_on_ones` (Ata e Transcrições de 1:1)
+```json
+[
+  {
+    "id": 1001,
+    "date": "2026-06-25T14:00:00Z",
+    "leaderId": 1,
+    "collaboratorId": 101,
+    "context": "Atrasos em entregas devido a sobrecarga.",
+    "transcription": "Colaborador: Estou muito sobrecarregado... Líder: Entendo, vamos reajustar.",
+    "summary": "Colaborador expressou sobrecarga. Acordado fatiar demandas.",
+    "pdiActions": "Organizar backlog semanalmente com o líder.",
+    "aiEvaluation": "O roteiro gerado foi bem aproveitado...",
+    "nextSuggestions": [
+      "Acompanhar o progresso do fatiamento das tarefas"
+    ]
+  }
+]
+```
+
+#### D. Chave `synchr_conflicts` (Conflitos Detectados/Escalados)
+```json
+[
+  {
+    "id": 501,
+    "protocol": "SHR-2026-1049",
+    "date": "2026-06-25T14:30:00Z",
+    "oneOnOneId": 1001,
+    "collaboratorId": 101,
+    "incidentType": "PERFORMANCE_DISPUTE",
+    "description": "Atrito por conta de sobrecarga sistemática na equipe.",
+    "status": "RESOLVED",
+    "resolutionNotes": "Parecer do RH: capacidade de entrega ajustada.",
+    "resolutionDate": "2026-06-28T16:00:00Z"
+  }
+]
+```
+
+#### E. Chave `synchr_prompts` (Configuração dos Prompts Modelos)
+```json
+[
+  {
+    "id": "master-prompt",
+    "name": "Prompt do Copiloto Smart Leading",
+    "systemPrompt": "Você é o copiloto de IA Smart Leading...",
+    "lastUpdated": "2026-07-06T18:00:00Z"
+  }
+]
+```
+
+### 5.4 Lógica de Validação da Regra de Escalação (localStorage/Memória)
+
+Lógica executada na função do cliente (ou Serverless Edge) ao solicitar mediação ao RH, lendo dados diretamente do `localStorage`:
 
 ```typescript
-const fortyFiveDaysAgo = new Date();
-fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
-
-// Query para buscar se existe reunião recente registrada
-const recent1on1 = await prisma.oneOnOne.findFirst({
-  where: {
-    collaboratorId: input.collaboratorId,
-    date: {
-      gte: fortyFiveDaysAgo
-    }
+function validateEscalationLocal(collaboratorId: number, incidentType: string): boolean {
+  // Casos de desvios graves ética/assédio ignoram a validação de 1:1 recente
+  if (incidentType === 'ETHICS_VIOLATION' || incidentType === 'HARASSMENT') {
+    return true; 
   }
-});
 
-if (!recent1on1 && input.incidentType !== 'ETHICS_VIOLATION' && input.incidentType !== 'HARASSMENT') {
-  throw new Error("Erro de Validação: Não há registros de reuniões de 1:1 nos últimos 45 dias. Converse diretamente antes de escalar.");
+  const fortyFiveDaysAgo = new Date();
+  fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
+
+  // Recupera histórico do localStorage
+  const oneOnOnesRaw = localStorage.getItem('synchr_one_on_ones');
+  if (!oneOnOnesRaw) {
+    throw new Error("Erro de Validação: Não há registros de reuniões de 1:1 nos últimos 45 dias.");
+  }
+
+  const oneOnOnes = JSON.parse(oneOnOnesRaw);
+  const recent1on1 = oneOnOnes.find((item: any) => 
+    item.collaboratorId === collaboratorId && 
+    new Date(item.date) >= fortyFiveDaysAgo
+  );
+
+  if (!recent1on1) {
+    throw new Error("Erro de Validação: Não há registros de reuniões de 1:1 nos últimos 45 dias. Converse diretamente antes de escalar.");
+  }
+
+  return true;
 }
 ```
 
 ### 5.5 Segurança e Conformidade (LGPD)
 Para garantir conformidade de privacidade, a PoC implementou um validador de input que bloqueia o processamento em LLMs se forem detectados padrões como CPFs, e-mails ou palavras sensíveis do RH relacionadas a prontuários médicos e advertências disciplinares nominativas.
 
-### 5.6 Nova Modelagem de Dados (Expansão json-server / db.json)
-Para viabilizar a prototipação rápida com dados mockados, modelou-se a seguinte estrutura de dados JSON compatível com o `json-server`:
+### 5.6 Modelagem de Dados Local (Carregamento de Mock Inicial)
+Para inicialização da demonstração offline, os dados mockados estruturados são carregados no `localStorage` na primeira execução caso as chaves estejam vazias:
 
 ```json
 {
@@ -261,15 +298,14 @@ A transcrição das 1:1 é processada em um pipeline composto por três etapas:
 3. **Varredura e Extração de Conflitos:** Um módulo de análise sintática e semântica busca disparadores de conflito (ex: termos como *"atrito"*, *"sobrecarregado"*, *"demissão"*, *"injusto"*, *"briga"*). Caso a pontuação de criticidade seja atingida, um chamado de conflito é criado na tabela `conflicts` com status `PENDING`, disponibilizado imediatamente no painel do RH.
 
 ### 5.8 Administração de Prompts (Fine-Tuning Dinâmico)
-Para permitir ajustes na inteligência artificial sem alteração de código fonte, os prompts do sistema são armazenados no banco de dados (`settings`/`prompts`).
-- **Endpoint da API:** `GET /prompts` e `PATCH /prompts/:id`
-- **Fluxo de Inicialização:** Durante a inicialização de qualquer requisição de IA (como geração de roteiro ou assistência em tempo real), a API Server Action carrega o prompt mais recente do banco de dados, compõe a requisição com os metadados do líder e do colaborador (nível, DISC) e submete à API do Gemini.
-- **Admin Panel:** Uma interface administrativa CRUD permite a leitura, edição direta e publicação de novas diretrizes operacionais de prompt com registro de histórico de versões.
+Para permitir ajustes na inteligência artificial sem alteração de código fonte, os prompts do sistema são armazenados no repositório local do navegador (`localStorage` sob a chave `synchr_prompts`).
+- **Acesso Técnico:** O frontend lê a chave `synchr_prompts` antes de compor o prompt e enviar à API da LLM. Caso o administrador edite e salve, a chave correspondente é atualizada localmente via JavaScript.
+- **Admin Panel:** Uma interface administrativa CRUD permite a leitura, edição direta e salvamento das diretrizes operacionais de prompt diretamente no `localStorage`.
 
 ### 5.9 Estudo Técnico: Envio de Dados Externos (Inter-empresas)
 Para transmitir relatórios consolidados a outras empresas parceiras, o SyncHR adota o padrão de conformidade e segurança detalhado abaixo:
 1. **Camada de Transporte (Segurança):** Uso obrigatório de HTTPS com autenticação mútua TLS (mTLS) ou chaves de API rotativas integradas ao cabeçalho HTTP (`Authorization: Bearer <token>`).
-2. **Anonimização Criptográfica:** Os dados de identificação do colaborador e do líder são convertidos em hashes irreversíveis (SHA-256 combinados com um salt gerido nas variáveis de ambiente da Clear IT) ou totalmente removidos do payload (LGPD Art. 12).
+2. **Anonimização Criptográfica:** Os dados de identificação do colaborador e do líder são convertidos em hashes irreversíveis (SHA-256 combinados com um salt gerido na aplicação da Clear IT) ou totalmente removidos do payload (LGPD Art. 12).
 3. **Payload Estruturado:** Transmissão em formato JSON padronizado com criptografia simétrica AES-256-GCM para os dados de texto (transcrições/anotações) caso sejam confidenciais, conforme o modelo abaixo:
 
 ```json
@@ -287,5 +323,5 @@ Para transmitir relatórios consolidados a outras empresas parceiras, o SyncHR a
   "encryption_iv": "iv_vector_hex..."
 }
 ```
-4. **Registro de Logs de Consentimento:** O banco de dados mantém uma trilha de auditoria imutável registrando a data, hora, ID do colaborador e a versão do termo de consentimento assinado pelo titular que permitiu a transferência dos dados para fora do ambiente corporativo primário.
+4. **Registro de Logs de Consentimento:** O armazenamento local do navegador mantém uma trilha de auditoria de logs registrando a data, hora, ID do colaborador e a versão do termo de consentimento assinado pelo titular que permitiu a transferência dos dados para fora do ambiente corporativo primário.
 

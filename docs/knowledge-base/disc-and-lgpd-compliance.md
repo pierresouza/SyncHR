@@ -76,8 +76,8 @@ O SyncHR manipula dados altamente sensíveis de comportamento e relacionamento p
 *   **RH (Priscila Bacelar):** Apenas o RH tem acesso à aba de "Conflitos" e mediações. As transcrições brutas não devem ser expostas livremente; apenas resumos executivos anonimizados e os protocolos de conflito abertos são exibidos no painel do RH.
 
 ### D. Recomendações de Segurança LGPD para o Projeto
-1.  **Criptografia em Repouso e em Trânsito:** Transcrições guardadas no Postgres/Prisma devem ser encriptadas a nível de coluna (ex: usando criptografia PGP ou chaves AES-256 no banco).
-2.  **Trilha de Auditoria:** Registrar logs de qualquer acesso do RH ou líderes aos históricos dos colaboradores (Quem visualizou, Quando e Por quê).
+1.  **Criptografia em Repouso:** Transcrições guardadas localmente no `localStorage` devem ser criptografadas via JavaScript antes de serem serializadas (ex: usando bibliotecas como CryptoJS com chaves AES-256 baseadas em hash de sessão).
+2.  **Trilha de Auditoria:** Registrar no log local qualquer acesso do RH ou líderes aos históricos dos colaboradores (Quem visualizou, Quando e Por quê), persistindo a auditoria em chave protegida.
 
 ---
 

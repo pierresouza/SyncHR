@@ -124,4 +124,44 @@ Para garantir que o desenvolvimento siga o padrão Spec-as-Code de forma consist
 *   **Bloqueio de Bypass:** Se você pedir código diretamente sem antes especificar o Produto ou planejar a Engenharia, a IA fará um alerta de auto-consciência lembrando-o de seguir as fases necessárias para manter a qualidade e o sincronismo.
 *   **Auto-Diagnóstico (`/status` ou `/health`):** A qualquer momento no chat, você pode digitar `/status` ou `/health`. A IA fará uma varredura completa nas pastas do projeto, validando se a documentação e o código real estão alinhados, retornando um status de saúde do Onion (OK, Desalinhado ou Incompleto) e as ações corretivas.
 *   **Chamada por Comando ("Onion" ou `@onion`):** Ao chamar por "Onion" ou digitar `@onion` no chat, você sinaliza explicitamente para o Orquestrador assumir a liderança ativa, analisar o estado atual da conversa e do projeto, e propor o próximo passo lógico ou executar tarefas de sincronização/diagnóstico de forma autônoma.
-# SyncHR
+# SyncHR (Smart Leading)
+
+## 4. Como Executar e Testar a PoC
+
+A Prova de Conceito (PoC) do SyncHR é portátil e client-side native. Você pode executá-la e testá-la através dos seguintes comandos de terminal:
+
+### A. Servir o Frontend Localmente
+Selecione um dos comandos abaixo para hospedar a página `poc-dashboard.html` no seu navegador:
+*   **Servidor Estático Rápido:**
+    ```bash
+    npx serve .
+    ```
+*   **Servidor de Hot-Reload (Recarregamento em Tempo Real):**
+    ```bash
+    npx live-server .
+    ```
+
+### B. Executar Testes de Lógica
+Valide as regras de negócio de escalação de 45 dias, bypass ético e privacidade LGPD simuladas localmente:
+```bash
+node scratch/poc-test-logic.js
+```
+
+### C. Executar Testes Automatizados (QA)
+Caso queira integrar suítes de testes com frameworks avançados, utilize:
+*   **Instalação de Dependências de QA:**
+    ```bash
+    npm install -D vitest playwright
+    ```
+*   **Executar Testes Unitários:**
+    ```bash
+    npx vitest
+    ```
+*   **Rodar Cobertura de Código:**
+    ```bash
+    npx vitest run --coverage
+    ```
+*   **Executar Testes de UI E2E:**
+    ```bash
+    npx playwright test
+    ```

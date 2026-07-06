@@ -34,38 +34,35 @@ O **Smart Leading (Clear One IA)** é um copiloto inteligente de IA criado no **
 
 ## 4. Especificações Ativas (Em Detalhe)
 
-### F-01: Onboarding & Perfil de Liderança (Pronto para Dev)
+### F-01: Onboarding Estruturado do Líder (Pronto para Dev)
 
 #### História do Usuário
-Como **Líder**, quero passar por um fluxo de onboarding na plataforma web para que meu perfil de liderança seja mapeado e a IA adapte sua linguagem e profundidade ao meu estilo de gestão.
+Como **Líder**, quero passar por um fluxo de onboarding interativo na plataforma web para que minhas preferências de cargo (atual e destino) e estilo de gestão sejam mapeados e a IA adapte sua linguagem e profundidade ao meu contexto real.
 
 #### Critérios de Aceite
-1. **Classificação em 3 Perfis de Liderança:** O onboarding deve classificar o líder em um dos três perfis do projeto:
-   - **Líder Técnico:** Objetivo, focado em resultados, baixa tolerância à burocracia do RH. O agente deve fornecer roteiros diretos, rápidos e sem jargões.
-   - **Líder em Transição:** Técnico recém-promovido a gestor, quer liderar mas carece de repertório emocional para conversas difíceis. O agente deve fornecer roteiros detalhados e validações passo a passo.
-   - **Líder Engajado:** Valoriza feedbacks e o desenvolvimento de pessoas, mas sofre com falta de tempo para preparação. O agente deve focar em agilidade e produtividade diária.
-2. **Mapeamento de Framework de Competências:** Permitir a seleção e cruzamento dos níveis organizacionais (Colaboradores L1-L4; Liderança de Coordenador a C-Level) para orientar os roteiros e PDIs gerados pelo agente.
-3. **Persistência e Edição do Perfil:** O líder deve poder salvar o progresso de seu preenchimento e alterar suas respostas/perfil de liderança a qualquer momento na tela de configurações de conta.
-4. **Feedback de Perfil Mapeado:** Ao finalizar o onboarding, o sistema deve exibir de forma gráfica e amigável uma descrição detalhada do perfil resultante (seus pontos fortes, desafios sugeridos e como a IA irá se comunicar a partir dali).
+1. **Mapeamento do Perfil de Liderança:** O onboarding deve classificar o líder em um dos três perfis do projeto (Técnico, Em Transição ou Engajado) com base em suas respostas ou seleção direta.
+2. **Nível Organizacional:** Permitir o cadastro do nível de cargo atual e do nível alvo de desenvolvimento (Coordenador, Gerente, Diretor/C-Level).
+3. **Persistência do Perfil:** Os dados de perfil de liderança devem ser salvos no armazenamento local do navegador (`localStorage`) de modo que o copiloto carregue esses dados dinamicamente.
+4. **Resumo Visual:** Apresentar uma tela de conclusão detalhando os pontos fortes do perfil de liderança mapeado e como a IA se adaptará a partir dali.
 
 #### Regras de Negócio
-* O preenchimento do perfil de liderança é pré-requisito obrigatório para desbloquear a preparação de roteiros de 1:1.
-* **Segurança e LGPD (Privacidade de Dados):** É proibido inserir qualquer dado pessoal sensível dos colaboradores (nome completo, CPF, dados de saúde, advertências nominais). O líder deve utilizar apenas contexts de perfil, cargo e comportamento genéricos.
+* O preenchimento do perfil de liderança é obrigatório para desbloquear a preparação de roteiros de 1:1.
+* **Segurança e LGPD:** Os dados de onboarding do líder são privados e armazenados localmente na sessão do usuário.
 
 ---
 
-### F-02: Perfil do Colaborador (Testes & DISC) (Pronto para Dev)
+### F-02: Onboarding Estruturado do Colaborador (Testes & DISC) (Pronto para Dev)
 
 #### História do Usuário
-Como **Líder**, quero que meu liderado passe por um mapeamento de perfil comportamental DISC no onboarding (ou que eu possa selecionar o perfil dele manualmente) para que o Smart Leading sugira pautas de 1:1 altamente personalizadas baseadas no seu estilo de comunicação e necessidades.
+Como **Líder**, quero que meu liderado passe por um questionário comportamental estruturado de DISC no onboarding (ou que eu preencha de forma simulada baseada nas atitudes dele) para que o sistema mapeie o perfil dele no armazenamento local e recomende pautas de conversa personalizadas.
 
 #### Critérios de Aceite
-1. **Coleta de Perfil DISC no Onboarding:** O sistema deve oferecer um fluxo de preenchimento (mini-questionário comportamental) ou seleção direta de perfil DISC (Dominante/Executor, Influente/Comunicador, Estável/Planejador, Analítico/Conforme) para o liderado.
-2. **Pautas Sugeridas Dinamicamente:** Assim que o líder seleciona um colaborador para preparar a 1:1, a IA deve sugerir automaticamente 3 tópicos/pautas de conversa calibrados para o perfil DISC dele (ex: se Estável, focar em segurança psicológica e ritmo; se Dominante, focar em entregas rápidas e autonomia).
-3. **Cruzamento com Cargo e Nível (Framework de Levels):** O sistema deve cruzar a competência do nível do cargo (L1 a L4) com o perfil DISC para refinar a complexidade das perguntas iniciais geradas.
+1. **Questionário DISC Estruturado:** O sistema deve conter um questionário comportamental situacional (quiz de 4 perguntas principais) focado em tomada de decisões, trabalho em grupo, reação à pressão e recepção de feedbacks. O resultado mapeia o colaborador em uma das quatro vertentes: Dominância (D), Influência (I), Estabilidade (S) ou Conformidade (C).
+2. **Framework de Cargo (Levels):** Mapear o liderado no framework de competências organizacionais da Clear IT (L1 a L4).
+3. **Persistência e Cadastro do Liderado:** Armazenar os dados de perfil DISC do colaborador no repositório de dados local (mock de banco de dados/localStorage) para viabilizar as recomendações de pauta e personalização de feedbacks.
 
 #### Regras de Negócio
-* O preenchimento do perfil DISC do colaborador é opcional no onboarding, mas caso não preenchido, o líder deve selecionar o perfil correspondente na tela de preparação da 1:1 para habilitar a calibração de pautas.
+* Se o preenchimento do questionário DISC do colaborador for pulado no onboarding inicial, o sistema deve exigir que o líder selecione o perfil comportamental dele manualmente antes de iniciar a primeira 1:1.
 * **Anonimização no Front:** Os nomes dos perfis e descrições técnicas de comportamento devem seguir guias organizacionais positivos e construtivos, evitando rótulos depreciativos.
 
 ---
@@ -118,20 +115,20 @@ Como **Colaborador / Líder**, quero ter acesso a um canal estruturado para soli
 ### F-06: Dashboard Analítico e Sync HR (Pronto para Dev)
 
 #### História do Usuário
-Como **Gerente de RH (Priscila Bacelar) e Administrador**, quero ter acesso a um painel consolidado para gerenciar prompts da IA, analisar transcrições persistidas em banco de dados, mapear conflitos de forma automatizada e acionar um fluxo de mediação de conflitos resolvidos, de modo que o clima da Clear IT seja gerido estrategicamente e com plena segurança LGPD.
+Como **Gerente de RH (Priscila Bacelar) e Administrador**, quero ter acesso a um painel consolidado para gerenciar prompts da IA, analisar transcrições persistidas localmente, mapear conflitos de forma automatizada e acionar um fluxo de mediação de conflitos resolvidos, de modo que o clima da Clear IT seja gerido estrategicamente e com plena segurança LGPD.
 
 #### Critérios de Aceite
-1. **Armazenamento de Transcrições em Banco de Dados:** Toda a transcrição da reunião de 1:1/feedback deve ser salva de forma estruturada em uma tabela/coleção do banco de dados (associada ao ID da 1:1, data, ID do líder e ID do colaborador).
-2. **Sugestões de Assuntos pós-1:1 e Aprendizado Contínuo:** Após cada 1:1, a IA deve avaliar a transcrição em comparação com o roteiro gerado e sugerir assuntos ou abordagens futuras mais eficientes. O sistema deve alimentar o perfil do colaborador com estas preferências para calibrar os próximos roteiros de forma inteligente.
-3. **Mapeamento Automatizado de Conflitos:** A IA deve varrer a transcrição da reunião buscando indícios de atrito, insatisfação grave ou sobrecarga, gerando um registro automático na tabela de Conflitos se encontrar algo relevante.
+1. **Armazenamento de Transcrições Localmente:** Toda a transcrição da reunião de 1:1/feedback deve ser salva de forma estruturada no armazenamento local do navegador (`localStorage`), associada ao ID da 1:1, data, ID do líder e ID do colaborador.
+2. **Sugestões de Assuntos pós-1:1 e Aprendizado Contínuo:** Após cada 1:1, a IA deve avaliar a transcrição em comparação com o roteiro gerado e sugerir assuntos ou abordagens futuras mais eficientes. O sistema deve alimentar a ficha do colaborador localmente com estas preferências para calibrar os próximos roteiros de forma inteligente.
+3. **Mapeamento Automatizado de Conflitos:** A IA deve varrer a transcrição da reunião buscando indícios de atrito, insatisfação grave ou sobrecarga, gerando um registro automático na aba de Conflitos local se encontrar algo relevante.
 4. **Painel de Conflitos do RH com Fluxo de Resolução:** Uma aba protegida e acessível apenas pelo RH que exiba todos os conflitos detectados/escalados. O RH deve poder atualizar o status do conflito (ex: de PENDENTE para EM_RESOLUCAO ou SOLUCIONADO) através de um fluxo com notas de mediação e checklist de encerramento.
-5. **Painel do Administrador para Fine-Tuning de Prompts:** Área administrativa para visualizar e editar os prompts de sistema da IA (Roteiro e Copiloto Live). Modificações salvas devem atualizar as chamadas de IA imediatamente.
+5. **Painel do Administrador para Fine-Tuning de Prompts:** Área administrativa para visualizar e editar os prompts de sistema da IA (Roteiro e Copiloto Live). Modificações salvas devem atualizar as chamadas de IA imediatamente a partir do armazenamento local editável.
 6. **Controle de Transmissão de Dados Externos:** A interface administrativa deve exibir orientações e um fluxo para exportar dados anonimizados e encriptados caso as informações precisem ser enviadas para empresas parceiras, respeitando os direitos do colaborador.
 
 #### Regras de Negócio
 * **Acesso Restrito:** Apenas usuários com a flag `role === 'RH'` podem acessar a visualização de conflitos detalhada. Líderes normais não têm acesso a essa aba.
-* **Segurança e LGPD (Consentimento):** Antes de iniciar a transcrição ou o processamento de áudio/texto de uma 1:1, o sistema deve registrar o consentimento explícito do colaborador (Opt-in) salvo no banco de dados.
-* **Fine-Tuning Localizável:** O prompt modelo (fine-tuning) deve residir no banco de dados para evitar deploys desnecessários ao ajustar diretrizes de comunicação da IA.
+* **Segurança e LGPD (Consentimento):** Antes de iniciar a transcrição ou o processamento de áudio/texto de uma 1:1, o sistema deve registrar o consentimento explícito do colaborador (Opt-in) salvo localmente no localStorage.
+* **Fine-Tuning Localizável:** O prompt modelo (fine-tuning) deve residir no armazenamento local (localStorage) para permitir que administradores testem e ajustem diretrizes em tempo real sem a necessidade de novos deploys.
 
 ---
 

@@ -1,6 +1,6 @@
 # Guia e Blueprint de Arquitetura do Projeto - SyncHR (Smart Leading)
 
-Este documento consolidado serve como a especificação de engenharia, produto e compliance mais detalhada do ecossistema **SyncHR (Smart Leading)** da Clear IT. Ele descreve a estrutura de código, as tecnologias utilizadas, as regras de negócio, as conformidades regulatórias e a jornada cronológica de uso de ponta a ponta.
+Este documento consolidado serve como a especificação de engenharia, produto e compliance mais detalhada do ecossistema **SyncHR (Smart Leading)** da Clear IT. Ele descreve a estrutura de código, as tecnologias utilizadas, as regras de negócio, as conformidades regulatórias, os comandos padrões e a jornada cronológica de uso de ponta a ponta.
 
 ---
 
@@ -23,22 +23,22 @@ O projeto adota o padrão **Onion Portable**, organizando as camadas lógicas en
 ```text
 SyncHR/
 │
-├── .gitignore                          # Exclusões de arquivos temporários, build e banco de dados mockado
+├── .gitignore                          # Exclusões de arquivos temporários, build e relatórios locais
 ├── LICENSE                             # Licença MIT
-├── ONION-MASTER-PROMPT.md              # O Cérebro Orquestrador - Regula as personas da IA (@product, @engineer, @meta, @docs)
-├── README.md                           # Instruções de instalação, script npm e setup local
+├── ONION-MASTER-PROMPT.md              # O Cérebro Orquestrador - Regula as personas da IA (@pm, @frontend, @backend, @security, @testing, @validator)
+├── README.md                           # Instruções de instalação, comandos de serve e testes locais
 ├── PROJECT-GUIDE.md                    # Este arquivo - O Blueprint mestre do projeto
 ├── poc-dashboard.html                  # Painel Web Completo de PoC (HTML5/CSS3/Vanilla JS) contendo todas as simulações
 ├── presentation.html                   # Apresentação de slides interativa da metodologia Onion e do Smart Leading
 ├── smart-leading-dashboard-mockup.png  # Design Mockup de UI em alta resolução para visualização
 │
 ├── docs/                               # Pasta Centralizadora de Contexto de Desenvolvimento
-│   ├── business-context-lite.md        # Especificações de Produto (@product): Histórias de usuário, critérios de aceite e RNs
-│   ├── technical-context-lite.md       # Arquitetura de Engenharia (@engineer): Modelagem Prisma, APIs, algoritmos e conformidades
+│   ├── business-context-lite.md        # Especificações de Produto (@pm): Histórias de usuário, critérios de aceite e RNs (Não-Tech)
+│   ├── technical-context-lite.md       # Arquitetura de Engenharia (@backend/@frontend/@security/@testing): Mocks, local storage e testes (Tech)
 │   ├── business-technical-lite.md      # Consolidação unificada de MVP para apresentação comercial com o RH
 │   ├── onion-cycles.md                 # Fluxograma dos Ciclos Onion (Produto, Engenharia, KB e Sincronismo)
 │   │
-│   ├── knowledge-base/                 # Base de Conhecimento Científico e Pesquisas (@meta)
+│   ├── knowledge-base/                 # Artigos de Pesquisa e Bases de Conhecimento (@meta)
 │   │   ├── one-on-one-and-feedback-methodologies.md # Padrões de feedback SBI, GROW e perfis de liderança
 │   │   └── disc-and-lgpd-compliance.md              # Pesquisa detalhada de DISC, segurança legal LGPD e transmissão
 │   │
@@ -54,72 +54,79 @@ SyncHR/
 
 ## 3. Arquitetura Tecnológica e Fluxo de Dados
 
-A arquitetura do SyncHR é projetada para ser robusta, portátil e resiliente. O diagrama abaixo representa o fluxo de dados entre o Frontend, a API Serverless e o Banco de Dados:
+A arquitetura do SyncHR é projetada para ser robusta, portátil e resiliente, utilizando uma infraestrutura **100% cliente-side** (sem dependências de servidores PostgreSQL ou contêineres de banco externos):
 
 ```mermaid
 graph TD
-    A[Frontend: poc-dashboard.html] -->|1. Requisições REST / HTTP| B[Netlify Functions / API Route Handler]
-    A -->|1b. Fallback Local se Offline| C[(Browser: localStorage)]
+    A[Frontend: poc-dashboard.html] -->|1. Leitura e Escrita Local| B[(Browser: localStorage)]
+    A -->|2. Injeção de Prompt Modificado| C[LLM: Gemini API Client-side/Edge Wrapper]
     
-    B -->|2. Conector Prisma Client| D[(Database: Neon PostgreSQL)]
-    B -->|3. prompt + context + DISC| E[LLM: Gemini API]
-    
-    E -->|4. Tom Adaptado & Roteiro| B
-    B -->|5. Payload Higienizado LGPD| A
-    
-    F[json-server db.json] -.->|Simulador Local de API| A
+    C -->|3. Resposta Adaptada e Roteiros| A
 ```
 
 ### Detalhamento da Stack:
-1.  **Next.js App Router & Server Actions:** Garante que chaves de API da LLM e strings de conexão de banco de dados fiquem expostas apenas no servidor, rodando como funções serverless no Netlify.
-2.  **Prisma ORM & PostgreSQL:** Modelagem estruturada com migrations para consistência de dados.
-3.  **json-server (Porta 3000):** Utiliza um arquivo local `db.json` para expor rotas REST (`GET`, `POST`, `PATCH`, `DELETE`) para simular o comportamento de gravação e atualização de dados no banco relacional.
-4.  **Fallback de Armazenamento do Frontend:** O JavaScript no frontend monitora as conexões com o `json-server` via blocos `try/catch`. Caso o servidor local esteja inativo, os registros de 1:1, transcrições e conflitos são mantidos no `localStorage` do navegador para assegurar que a demonstração seja 100% autônoma e interativa.
+1.  **Next.js (App Router):** Utilizado para renderização estática rápida. Os componentes dinâmicos são implementados como Client Components para manter a reatividade da interface.
+2.  **Mock Storage Manager (`lib/storage.ts`):** Camada de abstração JavaScript que lê, valida e grava as strings JSON no `localStorage` do navegador, mantendo o estado da aplicação persistente entre atualizações de página.
+3.  **Gemini API Integration:** Chamadas encapsuladas e higienizadas para as APIs da LLM, recebendo os metadados do líder e do colaborador para gerar conselhos.
 
 ---
 
-## 4. Jornada Cronológica de Uso e Fluxos Detalhados
+## 4. Subagentes Especialistas do Onion Master Prompt
+
+O desenvolvimento e a manutenção do SyncHR são divididos entre subagentes com focos especializados:
+
+*   **@pm / @po (Planejador / Product Manager):** Foca em planejar "O que e por quê" (priorização de backlog, dores do cliente, histórias de usuário, requisitos funcionais e o onboarding estruturado de líderes/colaboradores).
+*   **@frontend / @front (Desenvolvimento Frontend):** Foca em UI/UX, boas práticas de layout (responsividade, grid, flexbox, consistência visual) e acessibilidade na web (diretrizes WCAG, tags ARIA, contraste cromático apropriado e navegação por teclado).
+*   **@backend / @back (Desenvolvimento Backend):** Foca na modelagem lógica, simulação de banco de dados mockado localmente (`localStorage`), integrações de APIs e lógica de dados.
+*   **@security / @sec (Segurança da Informação):** Foca em privacidade, conformidade LGPD, higienização de inputs contra PII (dados pessoais identificáveis) e dados de saúde sensíveis, além de qualidade de código defensiva (regras OWASP).
+*   **@testing / @qa (Qualidade e Testes):** Foca em planos de testes automatizados (unitários via Vitest, E2E via Playwright) e validações limite de regras de negócio.
+*   **@validator / @audit (Auditor de Validações):** Persona integradora que audita sistematicamente todas as camadas de validação (frontend, backend, testes de QA e cybersecurity).
+
+---
+
+## 5. Jornada Cronológica de Uso e Fluxos Detalhados
 
 A usabilidade do sistema segue uma ordem cronológica precisa, desde a preparação inicial da liderança até a governança de dados do RH.
 
-### Passo 1: Onboarding e Coleta de Perfil (F-01 e F-02)
+### Passo 1: Onboarding Estruturado (F-01 e F-02)
 
-O líder e o colaborador respondem a um questionário comportamental para calibrar a inteligência do copiloto.
+O onboarding é um fluxo obrigatório e estruturado para mapear os dados necessários antes do início das agendas:
 
-#### A. O Questionário DISC de Onboarding (Mini-Quiz de 4 Perguntas):
-O preenchimento avalia a reação do colaborador a diferentes situações profissionais:
-1.  *Decisões Rápidas:* 
-    *   (a) Prefiro agir de imediato para resolver logo. (**D**)
-    *   (b) Gosto de debater as ideias com a equipe. (**I**)
-    *   (c) Prefiro analisar o histórico e planejar o processo. (**S**)
-    *   (d) Preciso de dados e especificações precisas antes de agir. (**C**)
+#### A. Onboarding do Líder:
+O líder acessa a interface de configuração inicial e cadastra:
+1.  *Cargo Atual e Nível de Destino:* (Ex: Coordenador $\rightarrow$ Gerente).
+2.  *Perfil de Liderança:* Determina se o líder é **Técnico** (IA enxuta), **Em Transição** (IA detalhada com SBI) ou **Engajado** (IA rápida baseada em PDI). Os dados são persistidos sob a chave `synchr_leader_profile` no `localStorage`.
+
+#### B. Onboarding do Colaborador & Questionário DISC:
+O colaborador responde ao questionário comportamental de 4 perguntas para mapeamento comportamental (ou o líder preenche de forma simulada):
+1.  *Decisões Rápidas:*
+    *   (a) Prefiro agir de imediato para resolver logo. (**Dominância**)
+    *   (b) Gosto de debater as ideias com a equipe. (**Influência**)
+    *   (c) Prefiro analisar o histórico e planejar o processo. (**Estabilidade**)
+    *   (d) Preciso de dados e especificações precisas antes de agir. (**Conformidade**)
 2.  *Sob Pressão:*
-    *   (a) Fico impaciente e foco 100% no resultado. (**D**)
-    *   (b) Tento usar o carisma para aliviar o clima. (**I**)
-    *   (c) Tento manter a calma e seguir o plano estabelecido. (**S**)
-    *   (d) Torno-me extremamente focado nos detalhes e regras. (**C**)
+    *   (a) Fico impaciente e foco no resultado. (**Dominância**)
+    *   (b) Tento usar o carisma para aliviar o clima. (**Influência**)
+    *   (c) Tento manter a calma e seguir o plano. (**Estabilidade**)
+    *   (d) Foco obsessivamente nas regras e detalhes. (**Conformidade**)
 3.  *Trabalho em Equipe:*
-    *   (a) Gosto de liderar as decisões e delegar. (**D**)
-    *   (b) Valorizo a interação social e a empolgação. (**I**)
-    *   (c) Gosto de colaborar e manter a estabilidade do grupo. (**S**)
-    *   (d) Prefiro trabalhar de forma independente com metas claras. (**C**)
-4.  *Feedback:*
-    *   (a) Prefiro que me digam a verdade nua e crua diretamente. (**D**)
-    *   (b) Preciso sentir que meu esforço é reconhecido socialmente. (**I**)
-    *   (c) Preciso de orientações calmas que deem segurança na evolução. (**S**)
-    *   (d) Exijo dados, métricas e análises objetivas sobre o meu desvio. (**C**)
+    *   (a) Gosto de liderar as decisões e delegar. (**Dominância**)
+    *   (b) Valorizo a interação social e a empolgação. (**Influência**)
+    *   (c) Gosto de colaborar de forma previsível e estável. (**Estabilidade**)
+    *   (d) Prefiro trabalhar de forma independente. (**Conformidade**)
+4.  *Recepção de Feedbacks:*
+    *   (a) Prefiro críticas diretas e sem rodeios. (**Dominância**)
+    *   (b) Preciso de validação e reconhecimento social. (**Influência**)
+    *   (c) Exijo um tom calmo que transmita segurança na evolução. (**Estabilidade**)
+    *   (d) Exijo métricas estruturadas e fatos concretos. (**Conformidade**)
 
-#### B. Definição do Perfil de Liderança:
-O líder é classificado para que a IA adapte sua linguagem e profundidade:
-*   **Líder Técnico:** IA responde com pautas e roteiros rápidos, sem rodeios e sem jargões corporativos.
-*   **Líder em Transição:** IA fornece guias passo a passo, conselhos comportamentais de inteligência emocional e a metodologia de feedback SBI (Situação, Comportamento, Impacto).
-*   **Líder Engajado:** IA foca na velocidade de preenchimento, geração de combinados rápidos e acompanhamento de metas de PDI.
+Os dados são salvos na coleção de liderados (chave `synchr_collaborators`).
 
 ---
 
 ### Passo 2: Seleção de Colaborador e Sugestão de Tópicos por Perfil (F-02)
 
-Quando o líder entra na tela de preparação de uma nova 1:1, ele escolhe o colaborador. O sistema busca no banco o perfil DISC do colaborador e exibe sugestões de tópicos de início:
+Quando o líder entra na tela de preparação de uma nova 1:1, ele escolhe o colaborador. O sistema busca no banco local o perfil DISC do colaborador e exibe sugestões de tópicos de início:
 
 *   **Liderado Dominante/Executor (D):**
     1.  *Alinhamento de Entregas:* "Quais são os gargalos que estão travando a velocidade da sua entrega na sprint?"
@@ -138,108 +145,88 @@ Quando o líder entra na tela de preparação de uma nova 1:1, ele escolhe o col
 
 ### Passo 3: Preparação do Roteiro (< 3 Minutos) (F-03)
 
-O líder escolhe o tema, o contexto da conversa e clica em **Gerar Roteiro**. O sistema carrega o **Prompt do Copiloto** correspondente ao perfil do líder cadastrado no banco:
-
-```text
-PROMPT DE GERAÇÃO (Exemplo para Líder em Transição):
-"Você é o copiloto de IA Smart Leading. Gere um roteiro passo a passo detalhado para uma reunião de 1:1 com um colaborador de perfil {DISC} utilizando a metodologia SBI (Situação, Comportamento, Impacto). Forneça dicas de inteligência emocional e perguntas de empatia para o líder recém-promovido."
-```
-
-O roteiro é exibido na tela contendo tempos sugeridos para cada etapa da conversa.
+O líder escolhe o tema, o contexto da conversa e clica em **Gerar Roteiro**. O sistema carrega o prompt global armazenado na chave `synchr_prompts`, injetando os perfis calibrados para gerar o roteiro e os tempos sugeridos de fala e escuta.
 
 ---
 
 ### Passo 4: Condução da 1:1 e Copiloto Live (F-03)
 
-Durante a conversa, o líder pode manter o painel de assistência ativo.
-*   O líder insere a fala em tempo real do colaborador no chat auxiliar.
-*   A IA (simulada ou via API) responde com conselhos baseados no perfil do colaborador.
-    *   *Exemplo:* O colaborador diz: "Estou me sentindo muito sobrecarregado."
-    *   *Conselho da IA para Líder Técnico:* "Sugira fatiar o backlog e pergunte diretamente qual tarefa pode ser priorizada ou adiada."
-    *   *Conselho da IA para Líder em Transição:* "O colaborador possui perfil Estável (S) e quer se sentir seguro. Diga que compreende o momento, valide a sobrecarga e construam juntos um plano de divisão de demandas."
+Durante a conversa, o painel "Live Assist" fornece 2 a 3 sugestões de perguntas imediatas de aprofundamento empático para ajudar o líder a manter a escuta ativa baseada nas respostas em tempo real do liderado (Regra 70/30: colaborador fala 70% do tempo).
 
 ---
 
-### Passo 5: Transcrição, Opt-in LGPD e Persistência no Banco (F-06)
+### Passo 5: Transcrição, Opt-in LGPD e Persistência no LocalStorage (F-06)
 
-Ao final do diálogo, o líder registra a transcrição completa ou pontos chaves discutidos.
-*   **Controle LGPD (Opt-in):** O sistema exige a marcação do checkbox de consentimento do colaborador ("O colaborador declarou estar ciente e consentiu com o registro desta transcrição").
-*   **Validação de Privacidade (Sanitização):** O texto passa por uma validação interna antes do envio à LLM ou salvamento:
-    *   *Padrão de CPFs:* `/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g` (identificado e removido).
-    *   *Padrão de E-mails:* `/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g` (identificado e removido).
-    *   *Blacklist de Termos Sensíveis de RH:* `["atestado", "médico", "saúde", "advertência nominal", "doença"]` (são bloqueados para evitar vazamento de dados de saúde do trabalhador).
-*   **Envio da Requisição REST:**
-    *   O frontend faz um `POST /oneOnOnes` enviando a transcrição e metadados.
-    *   Os dados são gravados estruturadamente no banco Postgres/`db.json`.
+Ao final da conversa, o líder registra a ata ou transcrição:
+1.  **Opt-in LGPD:** O sistema exige a marcação do consentimento de registro do colaborador.
+2.  **Validação de Privacidade (Sanitização):** O texto é inspecionado localmente antes de qualquer processamento para remover CPFs, e-mails e blacklist de termos médicos/saúde.
+3.  **Persistência:** A transcrição é gravada na chave `synchr_one_on_ones` do `localStorage`.
 
 ---
 
 ### Passo 6: Avaliação Pós-1:1 e Aprendizado do Modelo (F-06)
 
-Assim que a 1:1 é arquivada, o sistema aciona uma rotina secundária de IA:
-1.  **Avaliação do Roteiro vs. Transcrição:** O modelo avalia se as metas acordadas foram de fato documentadas.
-2.  **Geração de Recomendações de Eficiência:** A IA sugere temas que deveriam ter sido explorados com mais profundidade (Ex: "A conversa focou muito em código, mas o liderado havia sinalizado cansaço físico. Na próxima 1:1, investigue o bem-estar.").
-3.  **Loop de Aprendizado:** As sugestões pós-1:1 e as preferências de comunicação são adicionadas ao campo `feedbackHistory` do colaborador no banco de dados, calibrando a IA para sugerir pautas ainda mais assertivas na próxima preparação de pauta.
+Assim que a 1:1 é arquivada, o sistema aciona uma rotina secundária de IA local:
+1.  **Avaliação do Roteiro vs. Transcrição:** Avalia a aderência do líder e propõe melhorias.
+2.  **Loop de Aprendizado:** As sugestões pós-1:1 e as preferências de comunicação são injetadas no histórico local do colaborador (`feedbackHistory`), refinando as sugestões do passo 2 nos próximos ciclos.
 
 ---
 
-### Passo 7: Varredura Automática de Conflitos e Escalação (F-05 e F-06)
+### Passo 7: Mapeamento de Conflitos e Ação do RH (F-05 e F-06)
 
-Paralelamente, a transcrição salva passa por um analisador de sentimentos para mapeamento de conflitos corporativos.
-
-#### A. Mapeador de Conflitos:
-O texto da transcrição é avaliado contra um dicionário léxico de atrito:
-*   *Palavras de Alerta:* `["sobrecarregado", "atrito", "conflito", "demissão", "injusto", "desgaste", "briga", "pressão", "cobrando", "promessa", "desrespeito"]`.
-*   *Pontuação de Criticidade:* Se a contagem de termos de alerta for $\ge 2$, ou se a análise de sentimento da LLM retornar risco alto, um registro é criado na coleção `conflicts` com o status `PENDING`.
-
-#### B. Painel de Conflitos do RH (Aba Exclusiva):
-Apenas usuários autenticados com o perfil de RH visualizam a aba de Conflitos.
-
-```mermaid
-stateDiagram-v2
-    [*] --> PENDENTE : Conflito Mapeado na Transcrição / Escalação
-    PENDENTE --> EM_INVESTIGACAO : RH assume e inicia conversas
-    EM_INVESTIGACAO --> SOLUCIONADO : RH registra parecer e resolve conflito
-    SOLUCIONADO --> [*]
-```
-
-*   **Usabilidade do Fluxo de Resolução:**
-    1.  O analista de RH clica no protocolo do conflito.
-    2.  O sistema exibe o histórico de 1:1s e o histórico do colaborador (respeitando a LGPD e sem exibir transcrições brutas para manter a privacidade do diálogo líder-liderado, a menos que autorizado).
-    3.  O RH altera o status do conflito para `EM_INVESTIGACAO` e registra notas internas.
-    4.  Após a mediação, o RH preenche um checklist de fechamento:
-        *   [x] Reunião de mediação realizada.
-        *   [x] Acordo de convivência assinado ou plano de ação traçado.
-        *   [x] Repactuação de capacidade/prazos com o gestor efetuada.
-    5.  O RH insere o parecer final, marca o conflito como `SOLUCIONADO`, e o registro é atualizado no banco via `PATCH /conflicts/:id`.
+*   **Detecção Automática:** A transcrição é varrida por um dicionário léxico de atrito (`["sobrecarregado", "atrito", "desgaste", "briga", "injusto"]`). Ao detectar criticidade alta, cria um registro na aba do RH com a chave `synchr_conflicts` (Status: `PENDING`).
+*   **Mediação do RH:** Priscila Bacelar visualiza os conflitos, altera o status para `EM_INVESTIGACAO`, realiza as reuniões, preenche o checklist de mediação e finaliza o caso marcando como `SOLUCIONADO`.
 
 ---
 
-### Passo 8: Painel Administrativo de Prompts (F-06)
+### Passo 8: Painel Administrativo de Prompts (Fine-Tuning) (F-06)
 
-Permite aos administradores monitorar e gerenciar a IA sem alteração de código:
-*   **Edição do Prompt Modelo (Fine-Tuning):** O administrador edita o prompt que orienta a IA na geração de roteiros e conselhos.
-*   **Versionamento:** O prompt alterado é salvo na tabela `prompts` do banco. Ao rodar o endpoint `/oneOnOnes/generate`, o sistema injeta o prompt mais recente registrado no banco no contexto do Gemini.
-*   **Compliance de Transmissão Externa:** Permite a exportação de relatórios estatísticos de clima anonimizados para parceiros de auditoria organizacional, aplicando:
-    *   mTLS no transporte.
-    *   Hash SHA-256 com salt nas chaves do colaborador para evitar rastreabilidade nominativa.
-    *   Criptografia simétrica AES-256-GCM para payloads.
+O administrador acessa a tela de configurações, lê e edita o Prompt de Sistema diretamente na chave `synchr_prompts` do `localStorage`, ajustando diretrizes gerais operacionais do modelo instantaneamente.
 
 ---
 
-## 5. Regras de Negócio e Validações de Compliance
+## 6. Comandos Padrões de Execução e Testes
 
-Para manter a governança do processo, o SyncHR aplica rigorosas travas de sistema:
+Para facilitar e manter a qualidade do código e os padrões de validação auditados, o desenvolvedor dispõe dos seguintes comandos de terminal:
 
-1.  **RN01 (Regra de Histórico de 45 dias):**
-    Para abrir uma mediação comum de conflito no RH, o sistema faz uma consulta no banco para validar se existe pelo menos uma reunião de 1:1 registrada entre o líder e o colaborador nos últimos 45 dias. Caso contrário, a solicitação é recusada com orientação de conversa direta prévia.
-2.  **RN02 (Desvio Grave / Bypass de Ética):**
-    Denúncias graves de assédio moral, assédio sexual, racismo ou quebra de código de ética ignoram a barreira de 45 dias da RN01. A escalação é permitida imediatamente, ocultando os logs normais de 1:1 e gerando um alerta de alta prioridade criptografado direto para a gerência de RH.
-3.  **RN03 (Segurança LGPD):**
-    Qualquer dado que descumpra a higienização de PII ou dados sensíveis de saúde é removido do processamento antes de atingir os servidores externos de inteligência artificial.
-4.  **RBAC (Controle de Acesso Baseado em Função):**
-    *   *Líder:* Pode criar onboarding, gerar roteiros, simular chat do copiloto e visualizar o histórico de 1:1s de seus próprios liderados. Não visualiza outras áreas nem a aba do RH.
-    *   *RH:* Visualiza consolidados estatísticos de todas as áreas, painel de conflitos e realiza mediações.
-    *   *Administrador:* Acessa configurações globais e edição de prompts (Fine-tuning admin panel).
-5.  **Audit Log de Visualização:**
-    Toda vez que uma ficha de colaborador ou log de conflito é acessado no painel, o backend registra uma linha na tabela `audit_logs` gravando: `DateTime`, `UserRole`, `ActionType` e `TargetCollaboratorID`.
+### A. Rodar o Projeto Localmente
+*   **Servidor Estático Rápido:**
+    ```bash
+    npx serve .
+    ```
+    *(Serve a pasta atual na porta 3000 ou 5000).*
+*   **Servidor de Hot-Reload (Recarregamento Automático):**
+    ```bash
+    npx live-server .
+    ```
+    *(Abre o navegador e atualiza a visualização em tempo real de modificações nos arquivos HTML/CSS).*
+
+### B. Rodar Testes de Lógica
+*   **Execução direta dos testes de negócio (RN01, RN02 e LGPD):**
+    ```bash
+    node scratch/poc-test-logic.js
+    ```
+
+### C. Instalar Ferramentas de Teste Automatizado (Vitest/Playwright)
+*   **Instalação de dependências de QA:**
+    ```bash
+    npm install -D vitest playwright
+    ```
+
+### D. Executar Suítes de Testes de Qualidade
+*   **Executar testes unitários em modo watch:**
+    ```bash
+    npx vitest
+    ```
+*   **Executar testes unitários e extrair cobertura de código:**
+    ```bash
+    npx vitest run --coverage
+    ```
+*   **Executar testes E2E (Playwright) de fluxos de tela:**
+    ```bash
+    npx playwright test
+    ```
+*   **Exibir relatório visual de testes E2E:**
+    ```bash
+    npx playwright show-report
+    ```
