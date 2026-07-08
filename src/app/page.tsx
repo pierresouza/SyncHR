@@ -38,6 +38,9 @@ export default function DashboardPage() {
   const [leaderProfile, setLeaderProfile] = useState<LeaderProfile | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>('onboarding');
   const [copied, setCopied] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncLogs, setSyncLogs] = useState<string[]>([]);
 
   // General app initialization
   useEffect(() => {
@@ -65,6 +68,46 @@ export default function DashboardPage() {
   const handleLogout = () => {
     storage.setCurrentUser(null);
     router.push('/login');
+  };
+
+  const handleSyncDatabase = async () => {
+    setSyncing(true);
+    setSyncLogs(['[Início] Conectando ao endpoint corporativo da ClearIT...', '[Status] Lendo atas do localStorage...']);
+    
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    
+    const oneOnOnesList = storage.getOneOnOnes();
+    setSyncLogs(prev => [
+      ...prev,
+      `[Status] Detectadas ${oneOnOnesList.length} atas de reunião para processamento.`,
+      `[Segurança] Higienizando PII e criptografando notas...`
+    ]);
+
+    await new Promise((resolve) => setTimeout(resolve, 850));
+
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meetings: oneOnOnesList })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSyncLogs(prev => [
+          ...prev,
+          `[Protocolo] Recebido do DB: ${data.protocol}`,
+          `[Status] Total sincronizado: ${data.totalSynced} registros.`,
+          `[Sucesso] Concluído em ${new Date(data.timestamp).toLocaleTimeString()}. Sincronizado!`
+        ]);
+      } else {
+        setSyncLogs(prev => [...prev, `[Erro] Falha reportada pelo banco: ${data.error}`]);
+      }
+    } catch (e) {
+      console.error(e);
+      setSyncLogs(prev => [...prev, `[Erro] Falha crítica de conexão na rota /api/sync.`]);
+    } finally {
+      setSyncing(false);
+    }
   };
 
   // ==========================================
@@ -202,6 +245,7 @@ export default function DashboardPage() {
       return;
     }
     setActiveSection(sectionId);
+    setSidebarOpen(false);
   };
 
   // ==========================================
@@ -280,34 +324,32 @@ export default function DashboardPage() {
   ]);
   const [customInput, setCustomInput] = useState('');
 
-  const sendChatMessage = (text: string) => {
+  const sendChatMessage = async (text: string) => {
     const updatedMessages = [
       ...chatMessages.filter(m => m.sender !== 'sys'),
       { sender: 'colab' as const, text }
     ];
     setChatMessages(updatedMessages);
 
-    // Simulated AI response delay
-    setTimeout(() => {
-      let aiResponse = "";
-      const profile = leaderProfile?.profile || 'TRANSICAO';
-
-      if (text.includes("sobrecarregado")) {
-        if (profile === 'TECNICO') {
-          aiResponse = "Oriente o líder a revisar a distribuição de tarefas técnicas da sprint. Questione: 'Quais itens do backlog podemos repassar ou adiar?'";
-        } else if (profile === 'ENGAJADO') {
-          aiResponse = "Ação rápida recomendada: Faça um exercício de 2 minutos priorizando as top 3 entregas dele e limpe as distrações secundárias da agenda.";
-        } else {
-          aiResponse = "Foque na escuta ativa. Pergunte: 'Entendo perfeitamente. O que especificamente na carga atual está demandando mais de você? É um bloqueio técnico ou volume?'";
-        }
-      } else if (text.includes("PDI")) {
-        aiResponse = "Conecte a tarefa atual a uma competência técnica L3/L4. Pergunte quais tecnologias do projeto ele quer dominar nas próximas sprints.";
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          profile: leaderProfile?.profile || 'TRANSICAO'
+        })
+      });
+      const data = await res.json();
+      if (data.text) {
+        setChatMessages([...updatedMessages, { sender: 'ai' as const, text: data.text }]);
       } else {
-        aiResponse = "Valide o sentimento do colaborador (Regra 70/30). Pergunte o que causou essa percepção e combinem um registro transparente compartilhado das atas de 1:1 a partir de hoje.";
+        setChatMessages([...updatedMessages, { sender: 'ai' as const, text: 'Erro ao obter sugestão da IA.' }]);
       }
-
-      setChatMessages([...updatedMessages, { sender: 'ai' as const, text: aiResponse }]);
-    }, 400);
+    } catch (e) {
+      console.error(e);
+      setChatMessages([...updatedMessages, { sender: 'ai' as const, text: 'Falha na conexão com a API de IA em tempo real.' }]);
+    }
   };
 
   const handleSendCustomMessage = () => {
@@ -433,10 +475,20 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex min-h-screen relative z-10 font-sans">
+    <div className="flex min-h-screen relative z-10 font-sans overflow-x-hidden">
       
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden animate-fade-in"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar Panel */}
-      <aside className="w-[280px] shrink-0 border-r border-slate-800/80 bg-slate-950/80 backdrop-blur-md p-6 flex flex-col gap-6">
+      <aside className={`fixed inset-y-0 left-0 z-40 md:relative md:flex w-[280px] shrink-0 border-r border-slate-800/80 bg-slate-950/80 backdrop-blur-md p-6 flex flex-col gap-6 transition-transform duration-300 md:translate-x-0 ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      }`}>
         
         {/* Logo and Brand */}
         <div className="flex items-center gap-2">
@@ -573,7 +625,28 @@ export default function DashboardPage() {
       </aside>
 
       {/* Main Container Content */}
-      <main className="flex-1 p-8 overflow-y-auto space-y-6">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        
+        {/* Mobile Top Bar */}
+        <header className="flex md:hidden items-center justify-between p-4 border-b border-slate-805 bg-slate-950/80 backdrop-blur-md sticky top-0 z-20">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center font-bold text-slate-100 text-sm font-title">
+              S
+            </div>
+            <span className="font-bold text-xs tracking-tight text-slate-100 font-title uppercase font-mono">SyncHR</span>
+          </div>
+          <button 
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 border border-slate-800 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 transition-all focus:outline-none"
+            title="Menu"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </header>
+
+        <main className="flex-1 p-4 md:p-8 space-y-6 w-full max-w-[1600px] mx-auto">
         
         {/* Floating Locked Warn Banner */}
         {showWarning && (
@@ -1215,6 +1288,38 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Sincronização Corporativa (Clear IT DB) */}
+                <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/30 space-y-4 mt-4">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-200 text-xs">
+                    <Database className="w-4 h-4 text-indigo-400" />
+                    <span>Sincronismo Corporativo (Clear IT DB)</span>
+                  </div>
+                  
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Sincronize as atas de reuniões 1:1 ativas do localStorage para o banco de dados interno homologado.
+                  </p>
+
+                  <button
+                    onClick={handleSyncDatabase}
+                    disabled={syncing}
+                    className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-slate-100 text-xs font-semibold py-2 rounded-xl transition-all glow-btn"
+                  >
+                    {syncing ? 'Sincronizando...' : 'Enviar Dados para o Banco'}
+                  </button>
+
+                  {syncLogs.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-mono text-slate-500">Console de Transmissão:</div>
+                      <div className="text-[9px] font-mono text-emerald-400 leading-normal p-3 rounded-lg bg-slate-950 border border-slate-900 max-h-[140px] overflow-y-auto space-y-1">
+                        {syncLogs.map((log, index) => (
+                          <div key={index}>{log}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </div>
 
             </div>
@@ -1223,7 +1328,8 @@ export default function DashboardPage() {
 
 
 
-      </main>
+        </main>
+      </div>
 
     </div>
   );
