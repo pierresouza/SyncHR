@@ -39,7 +39,7 @@
 │                      Cliente (Browser)                 │
 │                                                        │
 │   ┌────────────────────────────────────────────────┐   │
-│   │             Interface (Next.js components)      │   │
+│   │             Interface (Next.js components)     │   │
 │   └───────────────────────┬────────────────────────┘   │
 │                           │ Leitura/Escrita            │
 │                           ▼                            │
@@ -55,8 +55,8 @@
                             │ Chamada de API Segura
                             ▼
                   ┌───────────────────┐
-                  │  Provedor de LLM     │  (chamadas via lib/llm.ts,
-                  │  (API externa)       │   nunca direto do client)
+                  │  Provedor de LLM  │  (chamadas via lib/llm.ts,
+                  │  (API externa)    │   nunca direto do client)
                   └───────────────────┘
 ```
 
@@ -324,4 +324,4 @@ Para transmitir relatórios consolidados a outras empresas parceiras, o SyncHR a
 }
 ```
 4. **Registro de Logs de Consentimento:** O armazenamento local do navegador mantém uma trilha de auditoria de logs registrando a data, hora, ID do colaborador e a versão do termo de consentimento assinado pelo titular que permitiu a transferência dos dados para fora do ambiente corporativo primário.
-
+

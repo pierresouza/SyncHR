@@ -1,143 +1,209 @@
-# Business Context (Smart Leading — Clear One IA)
+# Business Context — SyncHR / Smart Leading
 
-> Este arquivo é a fonte de verdade para Produto. O agente `@product` atualizará este arquivo quando houver novas descobertas.
-
-## 1. Visão do Produto
-O **Smart Leading (Clear One IA)** é um copiloto inteligente de IA criado no **Programa Pulse Mais 2026** para transformar a rotina de feedbacks e reuniões 1:1 dos líderes da Clear IT. O tema estratégico de 2026, **"Adaptabilidade, Performance e Resultado"**, orienta todas as iniciativas do projeto e deve ser o fio condutor da comunicação do agente. Ele atua antes, durante e após as conversas, elevando o eNPS, impulsionando a confiança na liderança, promovendo o desenvolvimento de competências (Framework de Levels L1-L4 e Coordenador -> C-Level) e organizando a visibilidade de dados para a gestão estratégica de RH.
-
-**Responsável pela Área (Cliente):**
-- Priscila Bacelar (Gerente de RH - Clear IT)
-
-**Integrantes do Squad:**
-- **Tech:** Pierre Souza (Ponto Focal Principal), Ketelin Macedo
-- **Negócio/Produto:** Gustavo Batista, Lucas Santos, André Almeida
----
-
-## 2. Dores do Cliente (Problemas que resolvemos)
-- **Dispersão Geográfica e Falta de Frequência:** Operação distribuída em quatro estados principais (Manaus, São Paulo, Brasília e Rio de Janeiro) e colaboradores em outros estados (como Salvador e Santa Catarina), gerando reuniões fragmentadas, irregulares ou sem acompanhamento contínuo.
-- **Líderes sem Preparação e Roteiro:** Líderes improvisando pautas ou com baixo repertório emocional para conversas difíceis (desempenho e expectativas).
-- **Dados Descentralizados e Sem Visibilidade para o RH:** Informações perdidas em anotações no Word, planilhas Excel, Sólides ou sem registro algum, forçando o RH a atuar de forma reativa apagando "incêndios".
-- **Descontinuidade de PDIs:** Planos de Desenvolvimento Individual genéricos ou abandonados entre os ciclos.
-- **Queda nos Indicadores de Clima:** Queda expressiva no eNPS e no índice da dimensão Liderança e Confiança (Pesquisa de Clima 2025/2026).
+> **Documento de Negócio · Versão Completa · Pulse Mais 2026**
+> **Empresa cliente:** Clear IT Brasil (Clear Tecnologia da Informação S.A.)
+> **Grupo:** Pierre Souza · Ketelin Macedo · Gustavo Batista · Lucas Santos · André Almeida
+> **Repositório:** [github.com/pierresouza/SyncHR](https://github.com/pierresouza/SyncHR) · Julho / 2026
 
 ---
 
-## 3. Backlog de Épicos e Features
-| ID | Título | Status | Responsável | Notas |
-|---|---|---|---|---|
-| F-01 | Onboarding & Perfil de Liderança | Pronto para Dev | Pierre / Ketelin | Configura perfil de líder (Técnico, Transição, Engajado) e níveis |
-| F-02 | Perfil do Colaborador (Testes & DISC) | Pronto para Dev | Pierre / Ketelin | Mapeamento DISC do liderado e sugestões dinâmicas de pautas da IA |
-| F-03 | Copiloto de 1:1 e Feedbacks | Pronto para Dev | Pierre / Ketelin | Auxílio inteligente: antes (roteiros), durante (tempo real) e após (sugestões e banco) |
-| F-04 | Evolução Contínua de PDI | A Fazer | — | Sugestão e acompanhamento contínuo de PDIs entre ciclos |
-| F-05 | Fluxo de Escalação e Gestão de Conflitos | Pronto para Dev | Gustavo / Lucas | Canal de escalação claro e mediação de conflitos vinculada a histórico |
-| F-06 | Dashboard Analítico e Sync HR | Pronto para Dev | Pierre / Ketelin | Painel RH de Conflitos, Fluxo de Resolução, Admin Panel de Prompts e LGPD |
+## 1. Contextualização do Projeto
 
-## 4. Especificações Ativas (Em Detalhe)
+### 1.1 Quem é a Clear IT?
+A Clear IT Brasil (Clear Tecnologia da Informação S.A.) é uma integradora nacional especializada em arquitetura de dados, infraestrutura crítica, segurança cibernética e computação em nuvem. Opera sob o modelo de Provedora de Serviços Gerenciados (MSP) atendendo clientes do setor privado e da administração pública, com centros operacionais SOC e COPS funcionando 24h/7 dias.
 
-### F-01: Onboarding Estruturado do Líder (Pronto para Dev)
+### 1.2 O Problema Identificado
+Líderes da Clear IT, distribuídos em 4 estados principais, conduzem reuniões 1:1 e feedbacks de forma improvisada: sem pauta estruturada, com registros descentralizados em Word/Excel/Sólides e PDIs genéricos que são abandonados entre ciclos. O resultado é a queda no eNPS e no índice de Liderança & Confiança da Pesquisa de Clima 2025/2026.
 
-#### História do Usuário
-Como **Líder**, quero passar por um fluxo de onboarding interativo na plataforma web para que minhas preferências de cargo (atual e destino) e estilo de gestão sejam mapeados e a IA adapte sua linguagem e profundidade ao meu contexto real.
+**Principais dores identificadas:**
+*   Ausência de pauta estruturada antes das reuniões 1:1.
+*   Registros descentralizados e sem padronização.
+*   PDIs criados mas não acompanhados entre ciclos.
+*   Líderes sem repertório para tratar situações de conflito.
+*   RH sem visibilidade analítica sobre a qualidade das lideranças.
 
-#### Critérios de Aceite
-1. **Mapeamento do Perfil de Liderança:** O onboarding deve classificar o líder em um dos três perfis do projeto (Técnico, Em Transição ou Engajado) com base em suas respostas ou seleção direta.
-2. **Nível Organizacional:** Permitir o cadastro do nível de cargo atual e do nível alvo de desenvolvimento (Coordenador, Gerente, Diretor/C-Level).
-3. **Persistência do Perfil:** Os dados de perfil de liderança devem ser salvos no armazenamento local do navegador (`localStorage`) de modo que o copiloto carregue esses dados dinamicamente.
-4. **Resumo Visual:** Apresentar uma tela de conclusão detalhando os pontos fortes do perfil de liderança mapeado e como a IA se adaptará a partir dali.
-
-#### Regras de Negócio
-* O preenchimento do perfil de liderança é obrigatório para desbloquear a preparação de roteiros de 1:1.
-* **Segurança e LGPD:** Os dados de onboarding do líder são privados e armazenados localmente na sessão do usuário.
+### 1.3 A Solução — SyncHR / Smart Leading
+Copiloto inteligente de IA que apoia líderes em 3 momentos:
+*   **ANTES:** Roteiros personalizados em menos de 3 minutos.
+*   **DURANTE:** Sugestões e perguntas de aprofundamento empático em tempo real.
+*   **APÓS:** Resumos estruturados e PDIs consolidados, fornecendo visibilidade analítica para o RH.
 
 ---
 
-### F-02: Onboarding Estruturado do Colaborador (Testes & DISC) (Pronto para Dev)
+## 2. Personas
 
-#### História do Usuário
-Como **Líder**, quero que meu liderado passe por um questionário comportamental estruturado de DISC no onboarding (ou que eu preencha de forma simulada baseada nas atitudes dele) para que o sistema mapeie o perfil dele no armazenamento local e recomende pautas de conversa personalizadas.
+As personas são os perfis dos usuários reais que vão usar o SyncHR:
 
-#### Critérios de Aceite
-1. **Questionário DISC Estruturado:** O sistema deve conter um questionário comportamental situacional (quiz de 4 perguntas principais) focado em tomada de decisões, trabalho em grupo, reação à pressão e recepção de feedbacks. O resultado mapeia o colaborador em uma das quatro vertentes: Dominância (D), Influência (I), Estabilidade (S) ou Conformidade (C).
-2. **Framework de Cargo (Levels):** Mapear o liderado no framework de competências organizacionais da Clear IT (L1 a L4).
-3. **Persistência e Cadastro do Liderado:** Armazenar os dados de perfil DISC do colaborador no repositório de dados local (mock de banco de dados/localStorage) para viabilizar as recomendações de pauta e personalização de feedbacks.
-
-#### Regras de Negócio
-* Se o preenchimento do questionário DISC do colaborador for pulado no onboarding inicial, o sistema deve exigir que o líder selecione o perfil comportamental dele manualmente antes de iniciar a primeira 1:1.
-* **Anonimização no Front:** Os nomes dos perfis e descrições técnicas de comportamento devem seguir guias organizacionais positivos e construtivos, evitando rótulos depreciativos.
+| Persona | Perfil | O que o SyncHR resolve para ela |
+| :--- | :--- | :--- |
+| **Líder Técnico** | Direto, prefere objetividade. Não domina jargões de RH e fica inseguro em conversas emocionais. | Roteiros prontos, sem jargões, com foco em dados e metas claras. |
+| **Líder em Transição** | Recém-promovido, precisa de passo a passo emocional e segurança para lidar com conflitos. | Guias estruturados e suporte em tempo real durante a conversa. |
+| **Líder Engajado** | Experiente, busca agilidade e quer histórico organizado para acompanhar evolução da equipe. | Dashboard de progresso e registro automático das 1:1s realizadas. |
+| **Gerente de RH (Priscila Bacelar)** | Precisa de visão analítica consolidada para tomar decisões de clima organizacional. | Dashboard com frequência e qualidade das 1:1s por líder, com base em dados. |
 
 ---
 
-### F-03: Copiloto de 1:1 e Feedbacks (Pronto para Dev)
+## 3. Histórias de Usuário (User Stories)
 
-#### História do Usuário
-Como **Líder**, quero usar o copiloto inteligente web para me apoiar antes, durante e após as conversas de feedback e 1:1, de modo que eu gaste menos tempo me preparando e tenha mais qualidade nos diálogos.
+### F-01 — Onboarding & Perfil de Liderança
+*   **Como:** Líder (qualquer perfil)
+*   **Quero:** Configurar meu perfil de liderança informando meu estilo, equipe e contexto
+*   **Para que:** O copiloto gere roteiros adaptados à minha realidade específica
+*   **Critérios de Aceite:**
+    1. Perfil salvo com sucesso no armazenamento.
+    2. Roteiro gerado reflete o perfil configurado.
+    3. LGPD respeitada (sem dados pessoais sensíveis expostos).
+    4. Processo concluído em menos de 5 min.
 
-#### Critérios de Aceite
-1. **Antes da Conversa (Preparação < 3 min):** O líder preenche um breve formulário informando o tipo de reunião, contexto da situação, objetivo e perfil do liderado. O agente gera: roteiro personalizado, perguntas estratégicas, estrutura da reunião, abordagens sugeridas e sugestões de PDI.
-2. **Durante a Conversa (Tempo Real):** Painel web que atua como copiloto sugerindo perguntas de aprofundamento a partir da resposta do colaborador (ex: "estou sobrecarregado" -> sugere investigar causas e prioridades), apoio para conversas difíceis e equilíbrio entre fala e escuta.
-3. **Após a Conversa (Registro e PDI):** Geração de resumo e plano de ação (PDI) consolidado para registro rápido e rastreabilidade na plataforma.
+### F-02 — Perfil do Colaborador
+> [!WARNING]
+> **Pendente:** história ainda não formalizada no Sprint 1 — precisa ser adicionada ao documento no Sprint futuro.
+*   **Como:** Líder
+*   **Quero:** Visualizar o nível e perfil comportamental do meu liderado
+*   **Para que:** Eu adapte os roteiros ao contexto real de cada colaborador
+*   **Critérios de Aceite:** A definir no Sprint de especificação desta feature.
 
-#### Regras de Negócio
-* **Princípio Human-in-the-loop:** O agente de IA atua como suporte e orientação, nunca substituindo o julgamento do líder. Toda decisão sobre tom, conteúdo final e encaminhamentos é de responsabilidade exclusiva do gestor humano (aviso visível em destaque na interface).
-* **Restrição de Tom:** Os roteiros e sugestões da IA devem seguir o tom organizacional da Clear IT: direto, focado em resultados, empático e com calor humano, sem jargões de RH corporativos desconectados.
+### F-03 — Copiloto de 1:1 e Feedbacks
+*   **Como:** Líder
+*   **Quero:** Receber sugestões de pauta antes, orientações durante e um resumo após a reunião 1:1
+*   **Para que:** Eu conduza conversas mais estruturadas e mantenha registro consolidado para acompanhamento futuro
+*   **Critérios de Aceite:**
+    1. Roteiro gerado em menos de 3 min.
+    2. Human-in-the-loop respeitado (líder edita e aprova).
+    3. Resumo gerado automaticamente ao final.
+    4. (CA4 a definir).
 
----
+### F-04 — Evolução Contínua de PDI
+> [!WARNING]
+> **Pendente:** história ainda não formalizada no Sprint 1 — precisa ser adicionada ao documento no Sprint futuro.
+*   **Como:** Líder
+*   **Quero:** Acompanhar o progresso do PDI entre ciclos de 1:1
+*   **Para que:** Eu não perca a rastreabilidade dos compromissos acordados com meu liderado
+*   **Critérios de Aceite:** A definir no Sprint de especificação desta feature.
 
-### F-04: Evolução Contínua de PDI (A Fazer)
+### F-05 — Escalação e Gestão de Conflitos
+*   **Como:** Líder
+*   **Quero:** Receber orientações sobre como lidar com conflitos e, quando necessário, acionar o RH
+*   **Para que:** Eu resolva situações sensíveis de forma estruturada, sem improvisar e sem prejudicar o colaborador
+*   **Critérios de Aceite:**
+    1. Fluxo de escalação comum acionado somente após 45 dias sem resolução de 1:1.
+    2. Casos de desvio ético grave/assédio com bypass direto ao RH.
+    3. Orientações geradas no tom Clear IT.
+    4. Registro da ocorrência e protocolo gerado.
 
-#### História do Usuário
-- Como **Líder**
-- Quero **acompanhar o progresso do PDI entre ciclos**
-- Para que **eu não perca a rastreabilidade dos compromissos acordados nas 1:1s**
-
-#### Critérios de Aceite
-- CAs: a definir no Sprint de especificação desta feature
-
----
-
-### F-05: Fluxo de Escalação e Gestão de Conflitos (Pronto para Dev)
-
-#### História do Usuário
-Como **Colaborador / Líder**, quero ter acesso a um canal estruturado para solicitar suporte do RH na mediação de conflitos, garantindo que o processo seja embasado em dados históricos e não apenas em reações emocionais imediatas.
-
-#### Critérios de Aceite
-1. **Solicitação Vinculada:** A abertura de mediação/escalação deve obrigar o solicitante a indicar uma 1:1 documentada recente onde o assunto foi tratado previamente com o gestor direto.
-2. **Notificação Estruturada ao RH:** O RH recebe a notificação no painel consolidada com a linha do tempo de 1:1s e metas de PDI do colaborador, permitindo uma análise estratégica do histórico.
-3. **Detalhamento do Conflito:** Permitir que o solicitante relate, em campo de texto próprio, os fatos ocorridos, observando as diretrizes de LGPD (sem inclusão de dados sensíveis).
-4. **Geração de Protocolo e Rastreamento:** O sistema deve gerar um número de protocolo de atendimento exclusivo e notificar o solicitante sobre a abertura do chamado e a estimativa de prazo do RH.
-
-#### Regras de Negócio
-* Exigência de histórico: Apenas conflitos discutidos em 1:1s nos últimos 45 dias podem ser escalados via fluxo padrão. Denúncias graves de assédio ou quebra do código de ética pulam essa regra e são enviadas diretamente ao RH.
-* O colaborador pode acompanhar o status da escalação (Pendente, Em Análise, Concluída) por sua interface.
-
----
-
-### F-06: Dashboard Analítico e Sync HR (Pronto para Dev)
-
-#### História do Usuário
-Como **Gerente de RH (Priscila Bacelar) e Administrador**, quero ter acesso a um painel consolidado para gerenciar prompts da IA, analisar transcrições persistidas localmente, mapear conflitos de forma automatizada e acionar um fluxo de mediação de conflitos resolvidos, de modo que o clima da Clear IT seja gerido estrategicamente e com plena segurança LGPD.
-
-#### Critérios de Aceite
-1. **Armazenamento de Transcrições Localmente:** Toda a transcrição da reunião de 1:1/feedback deve ser salva de forma estruturada no armazenamento local do navegador (`localStorage`), associada ao ID da 1:1, data, ID do líder e ID do colaborador.
-2. **Sugestões de Assuntos pós-1:1 e Aprendizado Contínuo:** Após cada 1:1, a IA deve avaliar a transcrição em comparação com o roteiro gerado e sugerir assuntos ou abordagens futuras mais eficientes. O sistema deve alimentar a ficha do colaborador localmente com estas preferências para calibrar os próximos roteiros de forma inteligente.
-3. **Mapeamento Automatizado de Conflitos:** A IA deve varrer a transcrição da reunião buscando indícios de atrito, insatisfação grave ou sobrecarga, gerando um registro automático na aba de Conflitos local se encontrar algo relevante.
-4. **Painel de Conflitos do RH com Fluxo de Resolução:** Uma aba protegida e acessível apenas pelo RH que exiba todos os conflitos detectados/escalados. O RH deve poder atualizar o status do conflito (ex: de PENDENTE para EM_RESOLUCAO ou SOLUCIONADO) através de um fluxo com notas de mediação e checklist de encerramento.
-5. **Painel do Administrador para Fine-Tuning de Prompts:** Área administrativa para visualizar e editar os prompts de sistema da IA (Roteiro e Copiloto Live). Modificações salvas devem atualizar as chamadas de IA imediatamente a partir do armazenamento local editável.
-6. **Controle de Transmissão de Dados Externos:** A interface administrativa deve exibir orientações e um fluxo para exportar dados anonimizados e encriptados caso as informações precisem ser enviadas para empresas parceiras, respeitando os direitos do colaborador.
-
-#### Regras de Negócio
-* **Acesso Restrito:** Apenas usuários com a flag `role === 'RH'` podem acessar a visualização de conflitos detalhada. Líderes normais não têm acesso a essa aba.
-* **Segurança e LGPD (Consentimento):** Antes de iniciar a transcrição ou o processamento de áudio/texto de uma 1:1, o sistema deve registrar o consentimento explícito do colaborador (Opt-in) salvo localmente no localStorage.
-* **Fine-Tuning Localizável:** O prompt modelo (fine-tuning) deve residir no armazenamento local (localStorage) para permitir que administradores testem e ajustem diretrizes em tempo real sem a necessidade de novos deploys.
+### F-06 — Dashboard Analítico
+> [!WARNING]
+> **Pendente:** história ainda não formalizada no Sprint 1 — precisa ser adicionada ao documento no Sprint futuro.
+*   **Como:** Gerente de RH (Priscila Bacelar)
+*   **Quero:** Ver um painel consolidado com frequência e qualidade das 1:1s por líder
+*   **Para que:** Eu tome decisões de clima organizacional com base em dados, não em percepções
+*   **Critérios de Aceite:** A definir no Sprint de especificação desta feature.
 
 ---
 
-## 5. Validação de Escopo — Sprint 1 / MVP
+## 4. Requisitos Funcionais
 
-- **Escopo aprovado em:** 2026-06-29
-- **Aprovado por:** Priscila Bacelar (Gerente de RH — Clear IT) / Instrutor Pulse Mais
-- **Dentro do escopo:** F-01 Onboarding, F-03 Copiloto 1:1, F-05 Escalação
-- **Fora do escopo (MVP):** Integração Sólides, migração de histórico, PDI
-- **Restrições inegociáveis:** LGPD (RN01), Human-in-the-loop (RN02), 45 dias (RN03)
-- **Próxima revisão:** ao iniciar Sprint 2 / fase técnica
+| Código | Feature | Descrição |
+| :--- | :--- | :--- |
+| **RF01** | Onboarding | O sistema deve permitir que o líder configure seu perfil de liderança na primeira vez que acessa a plataforma. |
+| **RF02** | Perfil do Colaborador | O sistema deve exibir o perfil comportamental e histórico de cada liderado do líder cadastrado. |
+| **RF03** | Geração de Roteiro | O sistema deve gerar um roteiro de 1:1 personalizado em menos de 3 minutos com base no perfil do líder e do liderado. |
+| **RF04** | Sugestões em Tempo Real | Durante a reunião, o sistema deve oferecer sugestões de perguntas e abordagens conforme o andamento da conversa. |
+| **RF05** | Resumo Pós-Reunião | Ao encerrar a sessão, o sistema deve gerar automaticamente um resumo com pontos discutidos e compromissos assumidos. |
+| **RF06** | Acompanhamento de PDI | O sistema deve permitir registrar e acompanhar o progresso do Plano de Desenvolvimento Individual entre ciclos de 1:1. |
+| **RF07** | Escalação de Conflitos | O sistema deve detectar situações de conflito prolongado e orientar o líder sobre como acionar o fluxo de escalação para o RH. |
+| **RF08** | Dashboard RH | O sistema deve disponibilizar para o RH um painel com métricas de frequência e qualidade das 1:1s realizadas por líder. |
 
+---
+
+## 5. Requisitos Não Funcionais
+
+| Código | Categoria | Descrição |
+| :--- | :--- | :--- |
+| **RNF01** | Desempenho | O roteiro de 1:1 deve ser gerado em no máximo 3 segundos após a solicitação do líder. |
+| **RNF02** | Disponibilidade | O sistema deve estar disponível 24h/7 dias, com tolerância máxima de 0,5% de indisponibilidade mensal. |
+| **RNF03** | Segurança | Toda comunicação entre cliente e servidor deve ser criptografada via HTTPS. Dados sensíveis em repouso devem ser criptografados. |
+| **RNF04** | Privacidade / LGPD | Nenhum dado pessoal sensível dos colaboradores pode ser armazenado sem consentimento explícito e base legal definida. |
+| **RNF05** | Usabilidade | A plataforma deve ser intuitiva o suficiente para que um líder sem experiência técnica consiga gerar seu primeiro roteiro sem treinamento. |
+| **RNF06** | Compatibilidade | O sistema deve funcionar nos principais navegadores modernos (Chrome, Edge, Firefox) e ser responsivo para uso em tablet. |
+| **RNF07** | Manutenibilidade | O código deve seguir padrões de documentação que permitam a qualquer membro da equipe dar manutenção sem dependência de um único desenvolvedor. |
+
+---
+
+## 6. Regras de Negócio
+
+| Código | Regra | Descrição | Por que existe |
+| :--- | :--- | :--- | :--- |
+| **RN01** | LGPD | Nenhum dado pessoal sensível do colaborador é armazenado sem base legal e consentimento explícito. | Conformidade legal obrigatória com a Lei Geral de Proteção de Dados (Lei 13.709/2018). |
+| **RN02** | Human-in-the-loop | O copiloto sempre sugere — o líder sempre decide. Nenhuma ação (envio, escalação, registro) é executada de forma automática sem aprovação humana. | Garante responsabilidade humana sobre as decisões de liderança e evita erros gerados por IA. |
+| **RN03** | Regra dos 45 dias | Situações de conflito registradas e sem resolução após 45 dias corridos disparam automaticamente um alerta de escalação para o RH. | Evita que conflitos crônicos fiquem invisíveis e prejudiquem o clima organizacional. |
+| **RN04** | Bypass ético | Casos envolvendo assédio moral, sexual ou violação ética grave acionam diretamente o canal de RH, sem necessidade de aguardar o prazo de 45 dias. | Proteção imediata ao colaborador em situações de vulnerabilidade. |
+| **RN05** | Tom organizacional | Todos os roteiros e sugestões gerados pelo copiloto devem seguir a linguagem, valores e cultura organizacional da Clear IT. | Garante consistência de comunicação e evita que a IA gere respostas inadequadas ao contexto da empresa. |
+| **RN06** | Restrição de acesso | Dados de 1:1s e feedbacks são visíveis apenas para o líder envolvido e para o RH (com permissão). Pares de mesmo nível não têm acesso. | Preserva a confidencialidade da relação líder-liderado e a confiança no sistema. |
+
+---
+
+## 7. Escopo do MVP e Validação
+
+### 7.1 Backlog de Funcionalidades
+
+| ID | Funcionalidade | Prioridade | Status | Sprint | Responsável |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **F-01** | Onboarding & Perfil de Liderança | Alta | ✅ Pronto p/ Dev | MVP | Pierre / Ketelin |
+| **F-02** | Perfil do Colaborador | Média | ⏳ A Fazer | Futuro | Ketelin |
+| **F-03** | Copiloto de 1:1 e Feedbacks | Alta | ✅ Pronto p/ Dev | MVP | Pierre / Ketelin |
+| **F-04** | Evolução Contínua de PDI | Média | ⏳ A Fazer | Futuro | André |
+| **F-05** | Escalação e Gestão de Conflitos | Alta | ✅ Pronto p/ Dev | MVP | Gustavo / Lucas |
+| **F-06** | Dashboard Analítico | Baixa | ⏳ A Fazer | Backlog | Pierre |
+
+### 7.2 Dentro e Fora do Escopo
+
+*   **Dentro do Escopo (MVP):**
+    *   F-01: Onboarding & perfil de liderança.
+    *   F-03: Copiloto de 1:1 (antes/durante/após).
+    *   F-05: Fluxo de escalação e gestão de conflitos.
+*   **Fora do Escopo:**
+    *   Integração com Sólides / sistemas legados.
+    *   Migração de históricos de 1:1s anteriores.
+    *   F-04: Evolução de PDI (Sprint futuro).
+    *   F-02: Perfil do colaborador (Sprint futuro).
+
+### 7.3 Validação de Escopo
+
+| Campo | Informação |
+| :--- | :--- |
+| **Escopo aprovado em** | 2026-06-29 |
+| **Aprovado por** | Priscila Bacelar (Gerente de RH — Clear IT) / Instrutor Pulse Mais |
+| **Dentro do escopo** | F-01 Onboarding, F-03 Copiloto 1:1, F-05 Escalação |
+| **Fora do escopo (MVP)** | Integração Sólides, migração de histórico, PDI completo |
+| **Restrições inegociáveis** | LGPD (RN01), Human-in-the-loop (RN02), Regra 45 dias (RN03) |
+| **Próxima revisão** | Ao iniciar Sprint 2 / fase técnica |
+
+---
+
+## 8. Riscos e Pontos de Atenção
+
+| Risco / Pendência | Impacto | Ação recomendada |
+| :--- | :--- | :--- |
+| **Escopo sem validação formal** | Retrabalho na fase técnica | Registrar quem aprovou, quando e o que ficou fora (preenchido no item 7.3). |
+| **Backlog sem coluna de Responsável** | Falta de accountability do grupo | Responsáveis definidos e tabela atualizada no item 7.1. |
+| **Histórias de usuário incompletas** | Avaliação parcial do escopo | Planejar detalhamento de F-02, F-04 e F-06 nos sprints futuros. |
+| **Contexto técnico vazio** | Bloqueio no desenvolvimento técnico | Sincronizar o [technical-context-lite.md](file:///c:/Users/pierr/Documents/estudos/pulse-mais/ClearIT/projeto-ClearIT/SyncHR/docs/technical-context-lite.md) com a modelagem do localStorage e do Prisma. |
+| **Adesão dos líderes ao sistema** | Maior risco não-técnico | Definir um grupo piloto com líderes mais receptivos à inovação e tecnologia. |
+
+---
+
+## 9. Glossário
+
+*   **1:1 (One-on-One):** Reunião periódica entre líder e liderado para alinhamento, feedback e desenvolvimento.
+*   **PDI:** Plano de Desenvolvimento Individual — documento que registra metas de crescimento do colaborador.
+*   **eNPS:** Employee Net Promoter Score — métrica que mede o quanto os funcionários indicariam a empresa como boa para trabalhar.
+*   **LGPD:** Lei Geral de Proteção de Dados (Lei 13.709/2018) — regula o uso de dados pessoais no Brasil.
+*   **Human-in-the-loop:** Princípio de que toda decisão importante deve passar pela aprovação de um ser humano, mesmo que a IA sugira.
+*   **MVP:** Minimum Viable Product (Produto Mínimo Viável) — a versão mais enxuta do produto que ainda entrega valor ao cliente.
+*   **Sprint:** Ciclo de desenvolvimento ágil com duração fixa (geralmente 1-2 semanas) com entregas definidas.
+*   **SLA:** Service Level Agreement — acordo formal de nível de serviço entre a empresa e o cliente.
+*   **MSP:** Managed Service Provider — empresa que gerencia serviços de TI de outras empresas.
+*   **Backlog:** Lista priorizada de funcionalidades e tarefas que o sistema precisa ter.
+*   **Persona:** Perfil fictício mas realista que representa um tipo de usuário do sistema.
+*   **Copiloto de IA:** Sistema que usa inteligência artificial para sugerir ações e conteúdos, mas sem substituir a decisão humana.
