@@ -1,7 +1,7 @@
 export type LeaderProfileType = 'TECNICO' | 'TRANSICAO' | 'ENGAJADO' | 'PENDENTE';
 export type DiscProfileType = 'DOMINANTE' | 'ESTAVEL' | 'ANALITICO' | 'INFLUENTE';
 export type UserRole = 'LEADER' | 'RH';
-export type ConflictStatus = 'PENDING' | 'IN_INVESTIGATION' | 'RESOLVED';
+export type ConflictStatus = 'PENDING' | 'IN_INVESTIGATION' | 'RESOLVED' | 'UNRESOLVED';
 
 export interface UserSession {
   email: string;
@@ -54,4 +54,13 @@ export interface ConflictEscalation {
 export interface SystemPrompts {
   mainPrompt: string;
   realTimePrompt: string;
+}
+
+export interface SimulatedEmail {
+  id: string;
+  to: string;
+  from: string;
+  subject: string;
+  body: string;
+  date: string;
 }

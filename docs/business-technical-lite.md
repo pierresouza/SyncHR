@@ -22,12 +22,15 @@ O escopo do MVP foi validado e prioriza funcionalidades cruciais que habilitam o
 
 *   **DENTRO do Escopo do MVP:**
     *   **F-01: Onboarding & Perfil de Liderança:** Mapeamento do perfil do gestor em 3 perfis e níveis de competência (L1-L4 e Coordenador a C-Level).
-    *   **F-03: Copiloto de 1:1 (Antes/Durante/Após):** Geração de roteiros personalizados baseados em perfil, assistência em tempo real e consolidação de atas com plano de ação.
-    *   **F-05: Fluxo de Escalação e Mediação:** Abertura de chamados de conflito para o RH vinculados ao histórico recente.
+    *   **F-02: Perfil do Colaborador (DISC):** Exibição do nível e perfil comportamental DISC no simulador e na listagem.
+    *   **F-03: Copiloto de 1:1 (Antes/Durante/Após):** Geração de roteiros adaptados, assistência no diálogo em tempo real e consolidação.
+    *   **F-04: Evolução Contínua de PDI:** Registro de itens de ação e progresso de PDI no histórico local.
+    *   **F-05: Fluxo de Escalação e Mediação:** Abertura de chamados de conflito com base em histórico recente.
+    *   **F-06: Dashboard Analítico do RH:** Painel consolidado com volume, eNPS médio e auditoria de mediações.
+    *   **F-07: Simulação de Envio de E-mails:** Homologação do envio fictício de roteiros/atas, registrando logs locais.
 *   **FORA do Escopo do MVP:**
-    *   F-02: Perfil do Colaborador (mapeamento automatizado).
-    *   F-04: Evolução Contínua de PDI (acompanhamento histórico complexo).
-    *   F-06: Dashboard Analítico avançado (Sync HR).
+    *   Integração física de email com API externa do Resend.
+    *   Integração direta de banco de dados com a plataforma Sólides e importação automatizada de históricos externos.
     *   Integração automática com o sistema Sólides e migração de histórico.
 *   **Restrições Inegociáveis (Compliance):**
     *   **RN01 (Exigência de 1:1):** Solicitações de mediação comuns exigem pelo menos uma 1:1 documentada nos últimos 45 dias.

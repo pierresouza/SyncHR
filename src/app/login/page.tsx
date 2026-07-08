@@ -108,7 +108,7 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase font-mono">Email Corporativo</label>
+                <label className="text-xs font-semibold tracking-wider text-slate-400 uppercase font-mono">Email Corporativo</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
                     <Mail className="w-4 h-4" />
@@ -125,7 +125,7 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase font-mono">Senha de Segurança</label>
+                <label className="text-xs font-semibold tracking-wider text-slate-400 uppercase font-mono">Senha de Segurança</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
                     <KeyRound className="w-4 h-4" />
@@ -152,7 +152,7 @@ export default function LoginPage() {
 
             {/* Test Accounts Segment */}
             <div className="pt-4 border-t border-slate-900 space-y-2">
-              <div className="flex items-center gap-1.5 text-[10px] tracking-wide text-slate-400 uppercase font-mono">
+              <div className="flex items-center gap-1.5 text-xs tracking-wide text-slate-400 uppercase font-mono">
                 <ShieldAlert className="w-3.5 h-3.5 text-indigo-400" />
                 <span>Simulação de Contas de Teste (Clique para preencher)</span>
               </div>
@@ -167,16 +167,16 @@ export default function LoginPage() {
                       key={user.email}
                       onClick={() => handleSelectMock(user)}
                       type="button"
-                      className="p-2 text-[11px] rounded-lg bg-slate-900/40 border border-slate-900 hover:bg-slate-900/80 hover:border-slate-800/80 text-slate-300 transition-all truncate"
+                      className="p-2 text-xs rounded-lg bg-slate-900/40 border border-slate-900 hover:bg-slate-900/80 hover:border-slate-800/80 text-slate-300 transition-all truncate"
                     >
                       <div className="font-semibold text-slate-200 truncate">{user.name}</div>
-                      <div className="text-[10px] text-slate-500 flex justify-between items-center mt-0.5">
+                      <div className="text-xs text-slate-500 flex justify-between items-center mt-0.5">
                         <span>{user.email.split('@')[0]}</span>
                         {isPending && (
-                          <span className="text-[9px] bg-amber-950/50 text-amber-400 border border-amber-900/40 px-1 rounded">Novo</span>
+                          <span className="text-[11px] bg-amber-950/50 text-amber-400 border border-amber-900/40 px-1 rounded">Novo</span>
                         )}
                         {isRH && (
-                          <span className="text-[9px] bg-cyan-950/50 text-cyan-400 border border-cyan-900/40 px-1 rounded">RH</span>
+                          <span className="text-[11px] bg-cyan-950/50 text-cyan-400 border border-cyan-900/40 px-1 rounded">RH</span>
                         )}
                       </div>
                     </button>

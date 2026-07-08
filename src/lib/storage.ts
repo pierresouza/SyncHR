@@ -97,7 +97,7 @@ export const storage = {
       // Seed leader profile automatically for pre-defined mock accounts
       if (user.role === 'LEADER' && user.profile !== 'PENDENTE') {
         const existingProfile = this.getLeaderProfile();
-        if (!existingProfile || existingProfile.profile === 'PENDENTE') {
+        if (!existingProfile || existingProfile.email !== user.email) {
           this.setLeaderProfile({
             id: 1,
             email: user.email,
@@ -109,7 +109,7 @@ export const storage = {
         }
       } else if (user.role === 'LEADER' && user.profile === 'PENDENTE') {
         const existingProfile = this.getLeaderProfile();
-        if (!existingProfile) {
+        if (!existingProfile || existingProfile.email !== user.email) {
           this.setLeaderProfile({
             id: 1,
             email: user.email,

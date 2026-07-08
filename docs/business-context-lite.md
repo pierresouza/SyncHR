@@ -55,13 +55,14 @@ As personas são os perfis dos usuários reais que vão usar o SyncHR:
     3. LGPD respeitada (sem dados pessoais sensíveis expostos).
     4. Processo concluído em menos de 5 min.
 
-### F-02 — Perfil do Colaborador
-> [!WARNING]
-> **Pendente:** história ainda não formalizada no Sprint 1 — precisa ser adicionada ao documento no Sprint futuro.
+### F-02 — Perfil do Colaborador (DISC)
 *   **Como:** Líder
-*   **Quero:** Visualizar o nível e perfil comportamental do meu liderado
-*   **Para que:** Eu adapte os roteiros ao contexto real de cada colaborador
-*   **Critérios de Aceite:** A definir no Sprint de especificação desta feature.
+*   **Quero:** Visualizar o nível de competência (L1-L4) e o perfil comportamental DISC do meu liderado
+*   **Para que:** Eu adapte o tom de voz e as sugestões de roteiro ao perfil psicológico e técnico do liderado, minimizando atritos.
+*   **Critérios de Aceite:**
+    1. Exibir badge do perfil DISC (Dominante, Influente, Estável, Analítico) na listagem.
+    2. Apresentar resumo descritivo do perfil comportamental e preferências do liderado.
+    3. Demonstrar o cargo e nível atual de maturidade técnica do liderado.
 
 ### F-03 — Copiloto de 1:1 e Feedbacks
 *   **Como:** Líder
@@ -71,15 +72,16 @@ As personas são os perfis dos usuários reais que vão usar o SyncHR:
     1. Roteiro gerado em menos de 3 min.
     2. Human-in-the-loop respeitado (líder edita e aprova).
     3. Resumo gerado automaticamente ao final.
-    4. (CA4 a definir).
+    4. Capacidade de enviar roteiro gerado como e-mail simulado.
 
 ### F-04 — Evolução Contínua de PDI
-> [!WARNING]
-> **Pendente:** história ainda não formalizada no Sprint 1 — precisa ser adicionada ao documento no Sprint futuro.
 *   **Como:** Líder
-*   **Quero:** Acompanhar o progresso do PDI entre ciclos de 1:1
-*   **Para que:** Eu não perca a rastreabilidade dos compromissos acordados com meu liderado
-*   **Critérios de Aceite:** A definir no Sprint de especificação desta feature.
+*   **Quero:** Registrar e acompanhar as metas e ações de PDI pactuadas entre ciclos de 1:1
+*   **Para que:** Eu não perca a rastreabilidade dos compromissos de desenvolvimento acordados com meu liderado.
+*   **Critérios de Aceite:**
+    1. Associação de ações práticas ao Plano de Desenvolvimento Individual do liderado.
+    2. Persistência do progresso do PDI de forma local e integrada à linha do tempo de 1:1.
+    3. Gravação de resultados da simulação interativa de conversas no PDI.
 
 ### F-05 — Escalação e Gestão de Conflitos
 *   **Como:** Líder
@@ -91,13 +93,23 @@ As personas são os perfis dos usuários reais que vão usar o SyncHR:
     3. Orientações geradas no tom Clear IT.
     4. Registro da ocorrência e protocolo gerado.
 
-### F-06 — Dashboard Analítico
-> [!WARNING]
-> **Pendente:** história ainda não formalizada no Sprint 1 — precisa ser adicionada ao documento no Sprint futuro.
+### F-06 — Dashboard Analítico do RH
 *   **Como:** Gerente de RH (Priscila Bacelar)
-*   **Quero:** Ver um painel consolidado com frequência e qualidade das 1:1s por líder
-*   **Para que:** Eu tome decisões de clima organizacional com base em dados, não em percepções
-*   **Critérios de Aceite:** A definir no Sprint de especificação desta feature.
+*   **Quero:** Ver um painel consolidado com a adesão, volume e qualidade das 1:1s, além de gerenciar incidentes
+*   **Para que:** Eu tome decisões estratégicas de clima organizacional com base em dados.
+*   **Critérios de Aceite:**
+    1. Dashboard com eNPS simulado, volume de reuniões e logs de auditoria.
+    2. Listagem clara e atualização de status dos chamados de conflito (Pendente, Em Mediação, Resolvido).
+    3. Acesso à alteração de prompts globais e visualização de e-mails simulados enviados.
+
+### F-07 — Simulação de Notificações de E-mail
+*   **Como:** Líder
+*   **Quero:** Disparar de forma simulada os roteiros e atas por e-mail para homologação da equipe
+*   **Para que:** Eu verifique o fluxo de ponta a ponta sem necessidade de enviar e-mails reais de produção usando APIs de terceiros.
+*   **Critérios de Aceite:**
+    1. Botão de disparo 100% simulado integrado ao Copiloto.
+    2. Armazenamento e listagem dos e-mails disparados no dashboard do RH para fins de auditoria.
+    3. Exibição de pop-up e logs indicando o sucesso do envio fictício.
 
 ---
 
@@ -140,6 +152,9 @@ As personas são os perfis dos usuários reais que vão usar o SyncHR:
 | **RN04** | Bypass ético | Casos envolvendo assédio moral, sexual ou violação ética grave acionam diretamente o canal de RH, sem necessidade de aguardar o prazo de 45 dias. | Proteção imediata ao colaborador em situações de vulnerabilidade. |
 | **RN05** | Tom organizacional | Todos os roteiros e sugestões gerados pelo copiloto devem seguir a linguagem, valores e cultura organizacional da Clear IT. | Garante consistência de comunicação e evita que a IA gere respostas inadequadas ao contexto da empresa. |
 | **RN06** | Restrição de acesso | Dados de 1:1s e feedbacks são visíveis apenas para o líder envolvido e para o RH (com permissão). Pares de mesmo nível não têm acesso. | Preserva a confidencialidade da relação líder-liderado e a confiança no sistema. |
+| **RN07** | Human-in-the-loop Ampliado | O copiloto atua de forma consultiva e todos os roteiros e resumos devem ser ativamente revisados pelo gestor humano. | Mantém o controle e a empatia da liderança humana. |
+| **RN08** | Tom de Voz | Linguagem direta, empática e humana, desprovida de jargões corporativos burocráticos. | Aproxima as lideranças técnicas da gestão humanizada de pessoas. |
+| **RN09** | Higienização LGPD | Sanitização de CPFs, e-mails, dados de prontuário e termos médicos no input antes do envio à IA. | Garante conformidade técnica estrita e previne o vazamento de PII. |
 
 ---
 
@@ -149,24 +164,27 @@ As personas são os perfis dos usuários reais que vão usar o SyncHR:
 
 | ID | Funcionalidade | Prioridade | Status | Sprint | Responsável |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F-01** | Onboarding & Perfil de Liderança | Alta | ✅ Pronto p/ Dev | MVP | Pierre / Ketelin |
-| **F-02** | Perfil do Colaborador | Média | ⏳ A Fazer | Futuro | Ketelin |
-| **F-03** | Copiloto de 1:1 e Feedbacks | Alta | ✅ Pronto p/ Dev | MVP | Pierre / Ketelin |
-| **F-04** | Evolução Contínua de PDI | Média | ⏳ A Fazer | Futuro | André |
-| **F-05** | Escalação e Gestão de Conflitos | Alta | ✅ Pronto p/ Dev | MVP | Gustavo / Lucas |
-| **F-06** | Dashboard Analítico | Baixa | ⏳ A Fazer | Backlog | Pierre |
+| **F-01** | Onboarding & Perfil de Liderança | Alta | ✅ Concluído | MVP | Pierre / Ketelin |
+| **F-02** | Perfil do Colaborador (DISC) | Média | ✅ Concluído | MVP | Ketelin |
+| **F-03** | Copiloto de 1:1 e Feedbacks | Alta | ✅ Concluído | MVP | Pierre / Ketelin |
+| **F-04** | Evolução Contínua de PDI | Média | ✅ Concluído | MVP | André |
+| **F-05** | Escalação e Gestão de Conflitos | Alta | ✅ Concluído | MVP | Gustavo / Lucas |
+| **F-06** | Dashboard Analítico do RH | Média | ✅ Concluído | MVP | Pierre |
+| **F-07** | Simulação de Notificações de E-mail | Alta | ✅ Concluído | MVP | Grupo SyncHR |
 
 ### 7.2 Dentro e Fora do Escopo
 
 *   **Dentro do Escopo (MVP):**
     *   F-01: Onboarding & perfil de liderança.
+    *   F-02: Perfil do colaborador (DISC no Simulador).
     *   F-03: Copiloto de 1:1 (antes/durante/após).
+    *   F-04: Evolução de PDI (registro de planos de ação).
     *   F-05: Fluxo de escalação e gestão de conflitos.
+    *   F-06: Dashboard analítico do RH com auditoria.
+    *   F-07: Simulação offline de envio de e-mails.
 *   **Fora do Escopo:**
-    *   Integração com Sólides / sistemas legados.
-    *   Migração de históricos de 1:1s anteriores.
-    *   F-04: Evolução de PDI (Sprint futuro).
-    *   F-02: Perfil do colaborador (Sprint futuro).
+    *   Integração física com a API externa do Resend.
+    *   Integração automática com o sistema Sólides e migração de histórico.
 
 ### 7.3 Validação de Escopo
 

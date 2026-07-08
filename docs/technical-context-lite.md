@@ -68,7 +68,9 @@
 
 ## 4. Planos de Implementação Ativos
 
-Nenhum plano de implementação ativo no momento. Quando uma feature for aprovada em `business-context-lite.md`, o agente `@engineer` detalhará aqui os arquivos a criar/modificar (rotas, componentes, models Prisma e migrations envolvidas).
+- **F-07 | Simulação de Envio de E-mails:** Canal de disparo mockado client-side gravado na chave `synchr_emails`.
+- **F-02 / F-04 | Simulador de Reunião 1:1:** Fluxo interativo por turnos com feedbacks instantâneos da IA baseados no perfil comportamental DISC e perfil de liderança do gestor.
+- **Acessibilidade de Fontes:** Redimensionamento de todas as fontes pequenas (abaixo de 12px) e ajuste dos textos corridos de 14px para 16px para garantir maior legibilidade.
 
 ---
 
@@ -182,6 +184,21 @@ O estado da aplicação é armazenado e persistido de forma estruturada no `loca
   }
 ]
 ```
+
+#### F. Chave `synchr_emails` (Logs de Disparos de E-mails Simulados)
+```json
+[
+  {
+    "id": "email-1688789000",
+    "to": "mariana.souza@clearit.com.br",
+    "from": "lider.tech@clearit.com.br",
+    "subject": "Ata e Roteiro de Reunião 1:1 - Mariana Souza (L2)",
+    "body": "### Roteiro de 1:1 Inteligente...",
+    "date": "2026-07-08T16:30:00Z"
+  }
+]
+```
+
 
 ### 5.4 Lógica de Validação da Regra de Escalação (localStorage/Memória)
 
