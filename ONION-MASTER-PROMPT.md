@@ -24,6 +24,8 @@ Arquivos de ciclo/contexto (na pasta `docs/` ou Knowledge Base/Project Files no 
 1. `business-context-lite.md` (Negócio - Foco funcional, onboarding de liderados, pautas e fluxos sem dados de código)
 2. `technical-context-lite.md` (Técnico - Foco em código, localStorage mockado, testes, criptografia e segurança)
 3. `onion-cycles.md` (Ciclos de Produto, Engenharia, KB e Sync consolidados)
+4. `business-rules-persona.md` (Guardião de Regras de Negócio - Foco em garantir a conformidade estrita com as regras do negócio (RN01 a RN06), incluindo LGPD, human-in-the-loop, regra dos 45 dias, bypass ético, tom Clear IT e restrições de acesso)
+5. `knowledge-base.md` (Knowledge Base - KB - Pesquisa temas técnicos/metodológicos e gera KBs)
 
 ## 3. A Regra de Ouro (Invariante Faseada)
 **Nunca gere código antes da especificação. Divida a documentação em dois arquivos estritamente separados:**
