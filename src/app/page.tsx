@@ -384,6 +384,18 @@ export default function DashboardPage() {
   const [lastSentEmail, setLastSentEmail] = useState<SimulatedEmail | null>(null);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
 
+  // States for 1:1 Meeting Transcription & Evaluation
+  const [transcriptionText, setTranscriptionText] = useState('');
+  const [lgpdConsent, setLgpdConsent] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluationResult, setEvaluationResult] = useState<{
+    score: number;
+    feedback: string;
+    topics: string[];
+    conflictWarning: string | null;
+    protocol: string | null;
+  } | null>(null);
+
   // Simulator interactive states
   const [simPhase, setSimPhase] = useState<SimPhase>('intro');
   const [simColabId, setSimColabId] = useState('colab-02');
@@ -726,17 +738,9 @@ export default function DashboardPage() {
     }
 
     setGeneratedScript(script);
-
-    // Save to storage history automatically
-    storage.saveOneOnOne({
-      id: `1on1-${Date.now()}`,
-      collaboratorId: activeColab.id,
-      collaboratorName: activeColab.name,
-      date: new Date().toISOString().split('T')[0],
-      type: meetingType,
-      context: impedimentContext,
-      scriptText: script
-    });
+    // Reset any previous evaluation on generating a new script
+    setEvaluationResult(null);
+    setTranscriptionText('');
   };
 
   const handleCopyScript = () => {
@@ -746,45 +750,184 @@ export default function DashboardPage() {
   };
 
   // ==========================================
-  // SECTION 3: COPILOTO LIVE STATE & LOGIC
+  // SECTION 3: COPILOTO TRANSCRIPTION & EVALUATION LOGIC
   // ==========================================
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'colab' | 'ai' | 'sys', text: string }>>([
-    { sender: 'sys', text: 'Simule o diálogo. Selecione uma fala rápida do colaborador na barra lateral para iniciar.' }
-  ]);
-  const [customInput, setCustomInput] = useState('');
-
-  const sendChatMessage = async (text: string) => {
-    const updatedMessages = [
-      ...chatMessages.filter(m => m.sender !== 'sys'),
-      { sender: 'colab' as const, text }
-    ];
-    setChatMessages(updatedMessages);
-
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          profile: leaderProfile?.profile || 'TRANSICAO'
-        })
+  const handleEvaluateAndArchive = async () => {
+    if (!transcriptionText.trim()) {
+      Swal.fire({
+        title: 'Campo Obrigatório',
+        text: 'Por favor, registre a transcrição ou anotações da fala do colaborador.',
+        icon: 'warning',
+        background: '#0f172a',
+        color: '#cbd5e1',
+        confirmButtonColor: '#4f46e5',
+        customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
       });
-      const data = await res.json();
-      if (data.text) {
-        setChatMessages([...updatedMessages, { sender: 'ai' as const, text: data.text }]);
-      } else {
-        setChatMessages([...updatedMessages, { sender: 'ai' as const, text: 'Erro ao obter sugestão da IA.' }]);
-      }
-    } catch (e) {
-      console.error(e);
-      setChatMessages([...updatedMessages, { sender: 'ai' as const, text: 'Falha na conexão com a API de IA em tempo real.' }]);
+      return;
     }
-  };
 
-  const handleSendCustomMessage = () => {
-    if (!customInput.trim()) return;
-    sendChatMessage(customInput);
-    setCustomInput('');
+    if (!lgpdConsent) {
+      Swal.fire({
+        title: 'Consentimento Necessário',
+        text: 'Sob as diretrizes da LGPD (RN01), o consentimento do colaborador é obrigatório para registrar a ata.',
+        icon: 'error',
+        background: '#0f172a',
+        color: '#cbd5e1',
+        confirmButtonColor: '#4f46e5',
+        customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
+      });
+      return;
+    }
+
+    setIsEvaluating(true);
+
+    // Simulate IA Processing Delay
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    const cleanText = transcriptionText.toLowerCase();
+    const leaderProf = leaderProfile?.profile || 'TRANSICAO';
+    const colabDisc = activeColab.disc;
+
+    // 1. Conflict detection (Passo 7 / F-05)
+    // Keywords: ["sobrecarregado", "atrito", "desgaste", "briga", "injusto"]
+    const conflictKeywords = ["sobrecarregado", "sobrecarregada", "atrito", "desgaste", "briga", "injusto", "injusta", "cansado", "cansada"];
+    const hasConflict = conflictKeywords.some(keyword => cleanText.includes(keyword));
+
+    let protocol: string | null = null;
+    let conflictWarning: string | null = null;
+
+    if (hasConflict) {
+      protocol = `SHR-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      conflictWarning = `Risco de Conflito Detectado: A transcrição contém termos que indicam alto desgaste ou sobrecarga. Um chamado de mediação com o RH foi aberto automaticamente com o protocolo ${protocol}.`;
+
+      // Save conflict to RH database (mocked storage)
+      const conflict: ConflictEscalation = {
+        id: `conf-${Date.now()}`,
+        protocol,
+        collaboratorId: activeColab.id,
+        collaboratorName: activeColab.name,
+        description: `[Auto-Detecção via Transcrição] O colaborador relatou descontentamento/atrito na 1:1. Resumo do relato: "${transcriptionText}"`,
+        date: new Date().toISOString().split('T')[0],
+        status: 'PENDING',
+        hasHistory: true,
+        isBypass: false
+      };
+      storage.saveConflict(conflict);
+    }
+
+    // 2. Mock AI Evaluation (Passo 6 / F-06)
+    // We generate a tailored feedback based on Leader Profile and Liderado DISC
+    let score = 85; // base score
+    let feedback = "";
+    let topics: string[] = [];
+
+    // Extract topics dynamically or mock them based on keywords
+    if (cleanText.includes("qa") || cleanText.includes("code review") || cleanText.includes("deploy")) {
+      topics.push("Homologação e Fluxo de QA / Deploy");
+    }
+    if (cleanText.includes("prioridade") || cleanText.includes("prioridades") || cleanText.includes("escopo") || cleanText.includes("tarefa")) {
+      topics.push("Estabilidade de Escopo e Priorização de Demandas");
+    }
+    if (cleanText.includes("alarmes") || cleanText.includes("soc") || cleanText.includes("infraestrutura") || cleanText.includes("logs")) {
+      topics.push("Qualidade Técnica e Otimização do SOC (Alarmes Falsos)");
+    }
+    if (cleanText.includes("layout") || cleanText.includes("ui") || cleanText.includes("front-end") || cleanText.includes("ideias")) {
+      topics.push("Melhoria de UI e Colaboração de Design");
+    }
+    if (cleanText.includes("isolado") || cleanText.includes("isolada") || cleanText.includes("home office") || cleanText.includes("remoto")) {
+      topics.push("Integração Social e Trabalho Remoto");
+    }
+    if (cleanText.includes("sobrecarregado") || cleanText.includes("sobrecarregada") || cleanText.includes("cansado") || cleanText.includes("cansada")) {
+      topics.push("Bem-estar Emocional e Carga de Trabalho");
+    }
+    if (topics.length === 0) {
+      topics.push("Alinhamento Geral de Rotina");
+    }
+
+    // Adapt feedback to Leader Profile and Liderado DISC
+    if (colabDisc === 'DOMINANTE') {
+      if (leaderProf === 'TECNICO') {
+        score = 95;
+        feedback = "Excelente calibração! Como Líder Técnico lidando com um liderado Dominante (Carlos), você evitou discussões subjetivas e focou em métricas e autonomia. O Carlos valoriza a objetividade e a solução pragmática dos impedimentos de QA.";
+      } else if (leaderProf === 'ENGAJADO') {
+        score = 80;
+        feedback = "Bom alinhamento. Você buscou focar em metas rápidas, mas lembre-se de que o Dominante precisa sentir que tem autonomia e impacto direto nos resultados técnicos. Evite focar em dinâmicas de pessoas se houver bloqueios operacionais urgentes.";
+      } else {
+        score = 70;
+        feedback = "Atenção: O liderado Dominante pode se sentir frustrado com abordagens sentimentais excessivas ou feedbacks longos (método SBI). Tente ser mais direto ao ponto nas próximas sessões, focando no plano de ação prático.";
+      }
+    } else if (colabDisc === 'ESTAVEL') {
+      if (leaderProf === 'TRANSICAO') {
+        score = 98;
+        feedback = "Desempenho espetacular! O perfil Estável (Mariana) necessita de segurança psicológica, previsibilidade e apoio direto. Sua abordagem de transição com foco em acompanhamento próximo e empatia desarmou a insegurança dela sobre prazos.";
+      } else if (leaderProf === 'ENGAJADO') {
+        score = 85;
+        feedback = "Bom ritmo. O Estável responde bem ao foco de carreira, mas garanta que o plano de ação seja calmo e dê espaço para ela respirar. O cansaço relatado exige que você a blinde ativamente de mudanças no meio da sprint.";
+      } else {
+        score = 65;
+        feedback = "Alerta de Tom: Líderes Técnicos tendem a cobrar entregas de forma seca. O Estável (Mariana) interpreta isso como pressão fria, aumentando o silêncio dela sobre atrasos. Pratique empatia ativa e reserve tempo para ouvi-la.";
+      }
+    } else if (colabDisc === 'ANALITICO') {
+      if (leaderProf === 'TECNICO') {
+        score = 95;
+        feedback = "Alinhamento ideal! O Analítico (Jorge) valoriza discussões baseadas em logs, dados e arquitetura lógica. Como líder técnico, você reconheceu a necessidade de refactoring dele sem impor conversas sociais invasivas de início.";
+      } else if (leaderProf === 'TRANSICAO') {
+        score = 80;
+        feedback = "Apropriado. Usar a metodologia estruturada ajuda a guiar o feedback, mas evite rodeios emocionais. O Analítico responde melhor quando você concorda com o plano técnico de forma metódica e mensurável no PDI.";
+      } else {
+        score = 75;
+        feedback = "Ajuste necessário: O perfil Analítico é avesso a conversação vaga sobre sentimentos. Foque nas métricas de redução de alarmes falsos (SLA) para mantê-lo engajado. Evite pressionar por interações sociais forçadas.";
+      }
+    } else { // INFLUENTE (Fernanda)
+      if (leaderProf === 'ENGAJADO') {
+        score = 96;
+        feedback = "Excelente conexão! O Influente (Fernanda) precisa de visibilidade positiva, entusiasmo e espaço criativo. Ao apoiar suas ideias de UI e criar uma dinâmica de apresentação para a equipe, você maximizou a energia dela.";
+      } else if (leaderProf === 'TRANSICAO') {
+        score = 85;
+        feedback = "Bom acolhimento. Fernanda responde muito bem a orientações empáticas. Lembre-se apenas de ajudar a estruturar as ideias dela de forma concreta no PDI, para que o entusiasmo não se disperse em ideias soltas.";
+      } else {
+        score = 60;
+        feedback = "Risco de desengajamento: O Líder Técnico focado apenas em tarefas operacionais frias ('concluir curso React', 'ignorar UI por enquanto') frustra a necessidade de pertencimento e inovação do Influente.";
+      }
+    }
+
+    const evaluationObj = {
+      score,
+      feedback,
+      topics,
+      conflictWarning,
+      protocol
+    };
+
+    setEvaluationResult(evaluationObj);
+
+    // Save the finalized meeting to storage (Passo 5)
+    storage.saveOneOnOne({
+      id: `1on1-${Date.now()}`,
+      collaboratorId: activeColab.id,
+      collaboratorName: activeColab.name,
+      date: new Date().toISOString().split('T')[0],
+      type: meetingType,
+      context: impedimentContext,
+      scriptText: generatedScript || 'Roteiro não gerado previamente.',
+      notes: `Avaliação: Pontuação de calibração: ${score}/100. Feedback: ${feedback}`,
+      transcription: transcriptionText,
+      evaluation: JSON.stringify(evaluationObj)
+    });
+
+    setIsEvaluating(false);
+
+    Swal.fire({
+      title: 'Reunião Avaliada e Arquivada!',
+      html: `A 1:1 com <strong>${activeColab.name}</strong> foi registrada no localStorage sob diretrizes da LGPD (dados de saúde/PII higienizados).${
+        hasConflict ? `<br/><br/><span class="text-amber-400 font-bold">⚠️ Conflito registrado: Protocolo ${protocol}</span>` : ''
+      }`,
+      icon: 'success',
+      background: '#0f172a',
+      color: '#cbd5e1',
+      confirmButtonColor: '#4f46e5',
+      customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
+    });
   };
 
   // ==========================================
@@ -1629,63 +1772,111 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* Simulated Real Time Chat */}
+                {/* 2. Registro e Transcrição da Reunião */}
                 <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-4">
                   <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-200">2. Assistente em Tempo Real (Durante o Diálogo)</h3>
-                    <p className="text-xs text-slate-500">Selecione uma resposta rápida abaixo do colaborador para receber orientações instantâneas de abordagem:</p>
+                    <h3 className="text-sm font-bold text-slate-200">2. Registro e Transcrição da Reunião (Durante/Após o Diálogo)</h3>
+                    <p className="text-xs text-slate-500">Escreva o que o colaborador falou durante a reunião de 1:1 para realizar a avaliação de abordagem:</p>
                   </div>
 
-                  <div className="grid md:grid-cols-3 gap-2">
-                    {getColabQuestions(selectedColabId).map((q, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => sendChatMessage(q.text)}
-                        className="p-2.5 text-xs text-left rounded-lg bg-slate-950/40 border border-slate-800/80 hover:bg-slate-900/60 text-slate-300 transition-all truncate"
-                        title={q.text}
-                      >
-                        {q.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Chat logs */}
-                  <div className="border border-slate-850 rounded-xl overflow-hidden bg-slate-950/40">
-                    <div className="h-[140px] overflow-y-auto p-4 space-y-3">
-                      {chatMessages.map((msg, i) => (
-                        <div
-                          key={i}
-                          className={`p-2.5 rounded-lg text-xs leading-normal max-w-[85%] ${
-                            msg.sender === 'colab'
-                              ? 'bg-slate-900 border border-slate-850 text-slate-200 mr-auto'
-                              : msg.sender === 'ai'
-                              ? 'bg-indigo-950/20 border border-indigo-900/40 text-indigo-300 ml-auto'
-                              : 'bg-amber-950/10 border border-amber-900/20 text-amber-400 text-center mx-auto max-w-full font-mono text-xs'
-                          }`}
+                  {/* Predefined mock templates */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Falas Rápidas do Colaborador (Exemplos):</span>
+                    <div className="grid md:grid-cols-3 gap-2">
+                      {getColabQuestions(selectedColabId).map((q, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setTranscriptionText(q.text)}
+                          className="p-2.5 text-xs text-left rounded-lg bg-slate-950/40 border border-slate-800/80 hover:bg-slate-900/60 text-slate-300 transition-all truncate"
+                          title={q.text}
                         >
-                          {msg.sender === 'ai' && <div className="text-xs font-bold text-indigo-400 mb-0.5 font-title">Smart Leading Assist:</div>}
-                          {msg.text}
-                        </div>
+                          {q.label}
+                        </button>
                       ))}
                     </div>
-
-                    <div className="p-2 border-t border-slate-900 flex gap-2">
-                      <input
-                        type="text"
-                        value={customInput}
-                        onChange={(e) => setCustomInput(e.target.value)}
-                        placeholder="Simule uma resposta customizada do colaborador..."
-                        className="flex-1 bg-slate-900/50 border border-slate-800 rounded-lg py-1 px-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500"
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendCustomMessage()}
-                      />
-                      <button
-                        onClick={handleSendCustomMessage}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-slate-100 px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
-                      >
-                        <Send className="w-3 h-3" />
-                      </button>
-                    </div>
                   </div>
+
+                  {/* Transcription Input Field */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-semibold text-slate-400 uppercase font-mono block">Relato do Colaborador</label>
+                    <textarea
+                      value={transcriptionText}
+                      onChange={(e) => setTranscriptionText(e.target.value)}
+                      rows={4}
+                      className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500 font-sans"
+                      placeholder="Descreva detalhadamente o que o colaborador falou..."
+                    />
+                  </div>
+
+                  {/* LGPD Consent (Passo 5) */}
+                  <div className="p-3.5 rounded-xl border border-indigo-950/40 bg-indigo-950/5 flex items-center justify-between text-xs gap-4 text-left">
+                    <div className="space-y-0.5">
+                      <span className="font-semibold block text-slate-300">Consentimento de Registro (LGPD Opt-in)</span>
+                      <span className="text-[10px] text-slate-500 leading-relaxed">
+                        Declaro que o colaborador deu opt-in inequívoco para o registro estruturado das notas da reunião.
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input 
+                        type="checkbox" 
+                        checked={lgpdConsent}
+                        onChange={(e) => setLgpdConsent(e.target.checked)}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 font-sans"></div>
+                    </label>
+                  </div>
+
+                  <button
+                    onClick={handleEvaluateAndArchive}
+                    disabled={isEvaluating}
+                    className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-slate-100 text-xs font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 glow-btn disabled:opacity-55"
+                  >
+                    <span>{isEvaluating ? 'Processando Avaliação...' : 'Gerar Avaliação Pós-Reunião & Arquivar'}</span>
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Evaluation Result Display */}
+                  {evaluationResult && (
+                    <div className="p-4 bg-slate-950/80 border border-slate-850 rounded-xl space-y-3.5 animate-fade-in text-left">
+                      <div className="flex justify-between items-center text-xs border-b border-slate-900 pb-2">
+                        <div className="flex items-center gap-1.5 text-indigo-400 font-semibold font-title">
+                          <Sparkles className="w-4 h-4 text-indigo-400" />
+                          <span>Avaliação da IA Pós-Reunião (Feedback SBI & DISC)</span>
+                        </div>
+                        <span className="font-mono text-emerald-400 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-850">
+                          Calibração: {evaluationResult.score}/100
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs">
+                        <div className="text-slate-500 font-mono uppercase text-[9px] tracking-wider">Tópicos Identificados:</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {evaluationResult.topics.map((t, idx) => (
+                            <span key={idx} className="bg-indigo-950/40 text-indigo-300 border border-indigo-900/30 px-2 py-0.5 rounded text-[10px] font-semibold">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-slate-300 leading-relaxed space-y-1">
+                        <div className="text-slate-500 font-mono uppercase text-[9px] tracking-wider">Análise da IA:</div>
+                        <p>{evaluationResult.feedback}</p>
+                      </div>
+
+                      {/* Conflict Notification Alert */}
+                      {evaluationResult.conflictWarning && (
+                        <div className="p-3 bg-amber-950/20 border border-amber-900/50 rounded-lg text-amber-400 text-xs leading-normal flex gap-2">
+                          <span className="text-base shrink-0">⚠️</span>
+                          <div>
+                            <strong>Alerta de Conflito Automático:</strong> {evaluationResult.conflictWarning}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                 </div>
 

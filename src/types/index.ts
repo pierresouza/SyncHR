@@ -10,6 +10,14 @@ export interface UserSession {
   profile: LeaderProfileType;
 }
 
+export interface UserRecord {
+  email: string;
+  password?: string;
+  name: string;
+  role: UserRole;
+  profile: LeaderProfileType;
+}
+
 export interface LeaderProfile {
   id: number;
   email: string;
@@ -36,6 +44,8 @@ export interface OneOnOne {
   context: string;
   scriptText: string;
   notes?: string;
+  transcription?: string;
+  evaluation?: string;
 }
 
 export interface ConflictEscalation {

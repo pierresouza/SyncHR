@@ -4,7 +4,8 @@ import {
   Collaborator, 
   OneOnOne, 
   ConflictEscalation, 
-  SystemPrompts 
+  SystemPrompts,
+  UserRecord
 } from '@/types';
 
 // Mock credentials mapping
@@ -72,6 +73,9 @@ export const storage = {
     if (!localStorage.getItem('synchr_collaborators')) {
       localStorage.setItem('synchr_collaborators', JSON.stringify(MOCK_COLLABORATORS));
     }
+    if (!localStorage.getItem('synchr_users')) {
+      localStorage.setItem('synchr_users', JSON.stringify(MOCK_USERS));
+    }
     if (!localStorage.getItem('synchr_one_on_ones')) {
       localStorage.setItem('synchr_one_on_ones', JSON.stringify(MOCK_ONE_ON_ONES(MOCK_COLLABORATORS)));
     }
@@ -81,6 +85,23 @@ export const storage = {
     if (!localStorage.getItem('synchr_prompts')) {
       localStorage.setItem('synchr_prompts', JSON.stringify(DEFAULT_PROMPTS));
     }
+  },
+
+  getUsers(): UserRecord[] {
+    if (!this.isBrowser()) return Array.from(MOCK_USERS);
+    this.initialize();
+    const raw = localStorage.getItem('synchr_users');
+    return raw ? JSON.parse(raw) : Array.from(MOCK_USERS);
+  },
+
+  saveUser(user: UserRecord): boolean {
+    if (!this.isBrowser()) return false;
+    const users = this.getUsers();
+    const exists = users.some(u => u.email.toLowerCase() === user.email.toLowerCase());
+    if (exists) return false;
+    users.push(user);
+    localStorage.setItem('synchr_users', JSON.stringify(users));
+    return true;
   },
 
   getCurrentUser(): UserSession | null {
