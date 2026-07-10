@@ -1,6 +1,9 @@
 /**
- * Resend Integration Client (Dependency-Free using fetch)
+ * Email Client (Nodemailer via Gmail SMTP)
+ * Substitui o Resend mantendo a mesma interface sendEmail({ to, subject, html })
  */
+
+import nodemailer from 'nodemailer';
 
 interface SendEmailParams {
   to: string;
@@ -9,31 +12,31 @@ interface SendEmailParams {
 }
 
 export async function sendEmail({ to, subject, html }: SendEmailParams) {
-  const apiKey = process.env.RESEND_API_KEY;
-  
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+
+  if (!user || !pass) {
+    console.warn('[Nodemailer] Credenciais Gmail não configuradas (GMAIL_USER / GMAIL_APP_PASSWORD). E-mail não enviado.');
+    return { success: false, error: 'Credenciais de e-mail não configuradas.' };
+  }
+
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        from: 'SyncHR <no-reply@synchr.tech>',
-        to: [to],
-        subject,
-        html
-      })
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || 'Erro ao enviar e-mail via Resend.');
-    }
+    const info = await transporter.sendMail({
+      from: `SyncHR <${user}>`,
+      to,
+      subject,
+      html,
+    });
 
-    return { success: true, id: data.id };
+    console.log('[Nodemailer] E-mail enviado com sucesso:', info.messageId);
+    return { success: true, id: info.messageId };
   } catch (err: any) {
-    console.error('[Resend API Error]:', err);
+    console.error('[Nodemailer Error]:', err);
     return { success: false, error: err.message };
   }
 }

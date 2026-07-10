@@ -1143,51 +1143,37 @@ export default function DashboardPage() {
     }
 
     try {
-      // 1. Cadastrar no Auth do Supabase (com senha padrão)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newLeaderEmail,
-        password: newLeaderPassword,
-        options: {
-          data: {
-            name: newLeaderName,
-            role: 'LEADER',
-            profile: 'PENDENTE'
-          }
-        }
+      // Usar rota server-side com Admin Client para NÃO trocar a sessão do browser
+      const res = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newLeaderName,
+          email: newLeaderEmail,
+          password: newLeaderPassword || 'SyncHR@2025',
+          role: 'LEADER'
+        })
       });
 
-      if (authError) throw authError;
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
 
-      if (authData.user) {
-        // 2. Criar registro na tabela public.profiles
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: authData.user.id,
-          email: newLeaderEmail,
-          name: newLeaderName,
-          role: 'LEADER',
-          profile_type: 'PENDENTE',
-          level_from: 'Coordenador',
-          level_to: 'Gerente'
-        });
+      Swal.fire({
+        title: 'Líder Cadastrado!',
+        text: `Gestor(a) ${newLeaderName} foi criado(a) e receberá o acesso por e-mail.`,
+        icon: 'success',
+        background: '#0f172a',
+        color: '#cbd5e1'
+      });
 
-        if (profileError) throw profileError;
-
-        Swal.fire({
-          title: 'Líder Cadastrado!',
-          text: `Gestor(a) ${newLeaderName} foi inserido no Supabase com sucesso.`,
-          icon: 'success',
-          background: '#0f172a',
-          color: '#cbd5e1'
-        });
-
-        setNewLeaderName('');
-        setNewLeaderEmail('');
-        fetchDatabaseData(currentUser!);
-      }
+      setNewLeaderName('');
+      setNewLeaderEmail('');
+      fetchDatabaseData(currentUser!);
     } catch (err: any) {
       Swal.fire('Erro no Cadastro', err.message, 'error');
     }
   };
+
 
   const handleRHRegisterCollaborator = async (e: React.FormEvent) => {
     e.preventDefault();
