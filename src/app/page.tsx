@@ -4,29 +4,29 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { storage, MOCK_USERS, MOCK_COLLABORATORS } from '@/lib/storage';
-import { 
-  LeaderProfileType, 
-  Collaborator, 
-  OneOnOne, 
-  ConflictEscalation, 
-  UserSession, 
+import {
+  LeaderProfileType,
+  Collaborator,
+  OneOnOne,
+  ConflictEscalation,
+  UserSession,
   LeaderProfile,
   SimulatedEmail,
   ConsistencyCheck
 } from '@/types';
-import { 
-  User, 
-  LogOut, 
-  Lock, 
-  Sparkles, 
-  MessageSquare, 
-  ShieldAlert, 
-  Terminal, 
-  Send, 
-  Check, 
-  Copy, 
-  RefreshCw, 
-  FileText, 
+import {
+  User,
+  LogOut,
+  Lock,
+  Sparkles,
+  MessageSquare,
+  ShieldAlert,
+  Terminal,
+  Send,
+  Check,
+  Copy,
+  RefreshCw,
+  FileText,
   Info,
   Sliders,
   Database,
@@ -234,7 +234,7 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
-  
+
   // Real Database States
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [oneOnOnes, setOneOnOnes] = useState<OneOnOne[]>([]);
@@ -249,16 +249,16 @@ export default function DashboardPage() {
   const [selectedAtaTemplate, setSelectedAtaTemplate] = useState('rotineira');
   const [meetingType, setMeetingType] = useState('Quinzenal Rotineira');
   const [impedimentContext, setImpedimentContext] = useState('Alinhamento de tarefas ordinárias e checagem de clima.');
-  
+
   const [generatedScript, setGeneratedScript] = useState('');
   const [loadingScript, setLoadingScript] = useState(false);
-  
+
   // Visual Kanban & Sliders states
   const [kanbanTasks, setKanbanTasks] = useState<Array<{ id: string; title: string; status: 'todo' | 'in_progress' | 'done' }>>([]);
   const [deliveryAdjustment, setDeliveryAdjustment] = useState<{ proposedDeadline: string; scopeChange: string; rationale: string } | null>(null);
   const [scopeSlider, setScopeSlider] = useState(50);
   const [deadlineSlider, setDeadlineSlider] = useState(50);
-  
+
   // Timer live assist states
   const [liveTalkTime, setLiveTalkTime] = useState(0); // em segundos
   const [leaderTalkPercentage, setLeaderTalkPercentage] = useState(30); // Regra 70/30
@@ -274,7 +274,7 @@ export default function DashboardPage() {
   const [transcriptionText, setTranscriptionText] = useState('');
   const [lgpdConsent, setLgpdConsent] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
-  
+
   // Results step 5
   const [evaluationResult, setEvaluationResult] = useState<{
     score: number;
@@ -284,7 +284,7 @@ export default function DashboardPage() {
     hasConflict?: boolean;
     finalSummary?: string;
   } | null>(null);
-  
+
   const [leaderApproved, setLeaderApproved] = useState(false);
   const [collaboratorApproved, setCollaboratorApproved] = useState(false);
   const [isSimulationToggle, setIsSimulationToggle] = useState(false); // Switch to sign-off as collaborator
@@ -308,7 +308,7 @@ export default function DashboardPage() {
   const [newLeaderEmail, setNewLeaderEmail] = useState('');
   const [newLeaderPassword, setNewLeaderPassword] = useState('lider123');
   const [newLeaderProfile, setNewLeaderProfile] = useState<LeaderProfileType>('TECNICO');
-  
+
   const [newColabName, setNewColabName] = useState('');
   const [newColabEmail, setNewColabEmail] = useState('');
   const [newColabDisc, setNewColabDisc] = useState<Collaborator['disc']>('DOMINANTE');
@@ -384,7 +384,7 @@ export default function DashboardPage() {
     try {
       // 1. Seed base data if profiles are empty (Auto-seeding)
       const { data: dbProfiles, error: profileErr } = await supabase.from('profiles').select('*');
-      
+
       if (!dbProfiles || dbProfiles.length === 0) {
         console.log('Seeding profiles table...');
         await supabase.from('profiles').insert(
@@ -440,7 +440,7 @@ export default function DashboardPage() {
           };
           setLeaderProfile(lProfile);
           storage.setLeaderProfile(lProfile);
-          
+
           if (user.role === 'LEADER' && matchedProfile.profile_type === 'PENDENTE') {
             setActiveSection('onboarding');
           } else if (user.role === 'RH') {
@@ -456,7 +456,7 @@ export default function DashboardPage() {
         .from('one_on_ones')
         .select('*')
         .order('date', { ascending: false });
-      
+
       if (dbOneOnOnes) {
         setOneOnOnes(dbOneOnOnes.map(o => ({
           id: o.id,
@@ -482,7 +482,7 @@ export default function DashboardPage() {
         .from('conflicts')
         .select('*')
         .order('date', { ascending: false });
-      
+
       if (dbConflicts) {
         setConflicts(dbConflicts.map(c => ({
           id: c.id,
@@ -742,11 +742,11 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error('Falha HTTP ao chamar API.');
 
       const data = await res.json();
-      
+
       setGeneratedScript(data.script);
       setKanbanTasks(data.kanbanTasks || []);
       setDeliveryAdjustment(data.deliveryAdjustment || null);
-      
+
       // Auto adjust visual sliders based on suggestions
       if (data.deliveryAdjustment) {
         const hasScopeMod = data.deliveryAdjustment.scopeChange.toLowerCase().includes('reduz') || data.deliveryAdjustment.scopeChange.toLowerCase().includes('diminu');
@@ -834,7 +834,7 @@ export default function DashboardPage() {
 
       if (!res.ok) throw new Error('Erro na resposta da API.');
       const data = await res.json();
-      
+
       setLiveSuggestions(data.text.split('\n').filter((l: string) => l.trim().length > 0));
     } catch (err: any) {
       console.error(err);
@@ -944,7 +944,7 @@ export default function DashboardPage() {
       if (saveErr) throw saveErr;
 
       setSavedMeetingId(oneOnOneData.id);
-      
+
       const link = `${window.location.origin}/feedback?id=${oneOnOneData.id}`;
       navigator.clipboard.writeText(link);
 
@@ -981,7 +981,7 @@ export default function DashboardPage() {
 
       Swal.fire({
         title: 'Link Gerado!',
-        text: activeColab.email 
+        text: activeColab.email
           ? `Ata salva no banco. O link de feedback foi enviado para ${activeColab.email} e também copiado para sua área de transferência.`
           : 'Ata salva no banco de dados. O link de feedback foi copiado para envio: ' + link,
         icon: 'success',
@@ -1102,9 +1102,8 @@ export default function DashboardPage() {
 
       Swal.fire({
         title: 'Ata Registrada e Validada!',
-        html: `A ata foi gravada com sucesso no Supabase.<br/>Status: <strong>VALIDADA (Dupla Assinatura)</strong>${
-          isDivergent ? `<br/><br/><span class="text-amber-400 font-bold">⚠️ Divergência detectada! Protocolo de conflito aberto no RH: ${protocol}</span>` : ''
-        }`,
+        html: `A ata foi gravada com sucesso no Supabase.<br/>Status: <strong>VALIDADA (Dupla Assinatura)</strong>${isDivergent ? `<br/><br/><span class="text-amber-400 font-bold">⚠️ Divergência detectada! Protocolo de conflito aberto no RH: ${protocol}</span>` : ''
+          }`,
         icon: 'success',
         background: '#0f172a',
         color: '#cbd5e1',
@@ -1122,7 +1121,7 @@ export default function DashboardPage() {
       setLeaderApproved(false);
       setCollaboratorApproved(false);
       setSavedMeetingId(null);
-      
+
       // Refresh Supabase logs in dashboard
       fetchDatabaseData(currentUser!);
 
@@ -1194,9 +1193,40 @@ export default function DashboardPage() {
 
       if (error) throw error;
 
+      // Enviar e-mail de boas-vindas para o liderado
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: newColabEmail,
+          subject: '[SyncHR] Você foi cadastrada(o) na plataforma de desenvolvimento',
+          html: `
+            <div style="font-family:sans-serif;max-width:540px;margin:0 auto;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px;">
+              <h2 style="color:#818cf8;margin-bottom:4px;">SyncHR</h2>
+              <p style="color:#64748b;font-size:12px;margin-top:0;">Plataforma de Liderança Inteligente · Clear IT Brasil</p>
+              <hr style="border-color:#1e293b;margin:24px 0;" />
+              <h3 style="color:#f1f5f9;">Olá, ${newColabName}! 👋</h3>
+              <p style="color:#94a3b8;">
+                Você foi cadastrada(o) na plataforma <strong style="color:#e2e8f0;">SyncHR</strong> como parte do programa de desenvolvimento de liderança da sua empresa.
+              </p>
+              <div style="background:#1e293b;border-radius:8px;padding:20px;margin:24px 0;">
+                <p style="margin:0 0 8px 0;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:1px;">O que é o SyncHR?</p>
+                <p style="margin:4px 0;color:#94a3b8;font-size:14px;">
+                  Uma plataforma que estrutura as reuniões 1:1 entre você e seu gestor, garantindo que as conversas sejam produtivas, documentadas e transparentes.
+                </p>
+              </div>
+              <p style="color:#94a3b8;">
+                Em breve você receberá um convite de reunião do seu líder com a pauta preparada especialmente para você. Após a reunião, um link de feedback chegará neste e-mail para que você registre sua opinião sobre a conversa.
+              </p>
+              <p style="color:#475569;font-size:12px;margin-top:24px;">Qualquer dúvida, fale com o RH da sua empresa.</p>
+            </div>
+          `
+        })
+      });
+
       Swal.fire({
         title: 'Colaborador Cadastrado!',
-        text: `Colaborador(a) ${newColabName} foi cadastrado no Supabase com sucesso.`,
+        text: `${newColabName} foi cadastrado(a) e receberá um e-mail de boas-vindas.`,
         icon: 'success',
         background: '#0f172a',
         color: '#cbd5e1'
@@ -1210,6 +1240,7 @@ export default function DashboardPage() {
       Swal.fire('Erro no Cadastro', err.message, 'error');
     }
   };
+
 
   const handleResolveConflict = async (id: string, notes: string) => {
     try {
@@ -1419,24 +1450,23 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen text-slate-100 flex relative overflow-hidden bg-[#0b0f19] font-sans">
-      
+
       {/* Background Orbs */}
       <div className="absolute w-[500px] h-[500px] rounded-full bg-indigo-500/5 -top-40 -left-40 orb pointer-events-none" />
       <div className="absolute w-[600px] h-[600px] rounded-full bg-cyan-500/3 -bottom-60 -right-20 orb pointer-events-none" />
 
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar Panel */}
-      <aside className={`fixed md:relative inset-y-0 left-0 w-64 border-r border-slate-900 bg-slate-950/90 backdrop-blur-xl p-5 flex flex-col gap-6 z-50 transition-transform duration-300 ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      }`}>
-        
+      <aside className={`fixed md:relative inset-y-0 left-0 w-64 border-r border-slate-900 bg-slate-950/90 backdrop-blur-xl p-5 flex flex-col gap-6 z-50 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}>
+
         {/* Brand */}
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center font-bold text-slate-100 text-lg font-title">
@@ -1453,7 +1483,7 @@ export default function DashboardPage() {
           <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/30 space-y-2">
             <div className="flex justify-between items-start">
               <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Conta Ativa</div>
-              <button 
+              <button
                 onClick={handleLogout}
                 className="text-slate-500 hover:text-red-400 transition-all"
                 title="Sair do Sistema"
@@ -1501,11 +1531,10 @@ export default function DashboardPage() {
         <nav className="flex-1 flex flex-col gap-1.5 pt-2">
           <button
             onClick={() => handleSwitchSection('about')}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
-              activeSection === 'about'
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${activeSection === 'about'
                 ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
                 : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-            }`}
+              }`}
           >
             <HelpCircle className="w-4 h-4 shrink-0" />
             <span>Sobre o SyncHR</span>
@@ -1514,11 +1543,10 @@ export default function DashboardPage() {
           {currentUser?.role === 'LEADER' && (
             <button
               onClick={() => handleSwitchSection('onboarding')}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
-                activeSection === 'onboarding'
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${activeSection === 'onboarding'
                   ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
                   : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-              }`}
+                }`}
             >
               <UserCheck className="w-4 h-4 shrink-0" />
               <span>Onboarding Liderança</span>
@@ -1529,11 +1557,10 @@ export default function DashboardPage() {
             <>
               <button
                 onClick={() => handleSwitchSection('copiloto')}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
-                  activeSection === 'copiloto'
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${activeSection === 'copiloto'
                     ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
                     : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 <Sparkles className="w-4 h-4 shrink-0" />
                 <span>Copiloto de 1:1 (Stepper)</span>
@@ -1541,11 +1568,10 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => handleSwitchSection('simulador')}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
-                  activeSection === 'simulador'
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${activeSection === 'simulador'
                     ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
                     : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 <Play className="w-4 h-4 shrink-0" />
                 <span>Simulador de DISC (Quiz)</span>
@@ -1553,11 +1579,10 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => handleSwitchSection('escalation')}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
-                  activeSection === 'escalation'
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${activeSection === 'escalation'
                     ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
                     : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 <ShieldAlert className="w-4 h-4 shrink-0" />
                 <span>Escalação de Conflitos</span>
@@ -1567,11 +1592,10 @@ export default function DashboardPage() {
 
           <button
             onClick={() => handleSwitchSection('historico')}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
-              activeSection === 'historico'
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${activeSection === 'historico'
                 ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
                 : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-            }`}
+              }`}
           >
             <ClipboardList className="w-4 h-4 shrink-0" />
             <span>Histórico de Reuniões</span>
@@ -1580,11 +1604,10 @@ export default function DashboardPage() {
           {currentUser?.role === 'RH' && (
             <button
               onClick={() => handleSwitchSection('rh')}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
-                activeSection === 'rh'
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${activeSection === 'rh'
                   ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
                   : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-              }`}
+                }`}
             >
               <Database className="w-4 h-4 shrink-0" />
               <span>Painel Geral do RH</span>
@@ -1599,11 +1622,11 @@ export default function DashboardPage() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        
+
         {/* Navbar */}
         <header className="h-16 border-b border-slate-900 bg-slate-950/40 backdrop-blur-md px-6 flex justify-between items-center z-30 sticky top-0">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setSidebarOpen(true)}
               className="p-1 text-slate-400 hover:text-slate-200 md:hidden"
             >
@@ -1619,7 +1642,7 @@ export default function DashboardPage() {
               {activeSection === 'rh' && 'Painel de Governança do RH'}
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
             {loadingDb ? (
               <span className="text-xs text-indigo-400 flex items-center gap-1.5">
@@ -1691,13 +1714,13 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   <h3 className="text-xl md:text-2xl font-bold text-slate-100 font-title">Por que o SyncHR é Revolucionário?</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Diferente de sistemas legados de RH que tratam feedback como formulários frios salvos uma vez ao ano, o SyncHR atua de forma proativa nas reuniões cotidianas. 
+                    Diferente de sistemas legados de RH que tratam feedback como formulários frios salvos uma vez ao ano, o SyncHR atua de forma proativa nas reuniões cotidianas.
                   </p>
                   <p className="text-xs text-slate-400 leading-relaxed">
                     Ele cruza o estilo de liderança do gestor com o perfil comportamental DISC e a maturidade técnica (L1 a L4) do liderado, garantindo uma abordagem individualizada, segura (em conformidade com a LGPD) e persistente no banco de dados.
                   </p>
                   <div className="flex gap-4">
-                    <button 
+                    <button
                       onClick={() => handleSwitchSection(currentUser?.role === 'RH' ? 'rh' : 'onboarding')}
                       className="bg-indigo-600 hover:bg-indigo-500 text-slate-100 text-xs font-bold py-2.5 px-5 rounded-xl transition-all"
                     >
@@ -1741,13 +1764,13 @@ export default function DashboardPage() {
               </div>
 
               <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-6">
-                
+
                 {/* Level Selectors */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Cargo / Nível Atual</label>
-                    <select 
-                      value={levelFrom} 
+                    <select
+                      value={levelFrom}
                       onChange={(e) => setLevelFrom(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                     >
@@ -1759,8 +1782,8 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Nível de Destino / Alvo</label>
-                    <select 
-                      value={levelTo} 
+                    <select
+                      value={levelTo}
                       onChange={(e) => setLevelTo(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                     >
@@ -1785,11 +1808,10 @@ export default function DashboardPage() {
                             key={opt.key}
                             type="button"
                             onClick={() => handleSelectOption(q.id, opt.key as any)}
-                            className={`p-3 text-xs text-left rounded-xl border transition-all ${
-                              answers[q.id] === opt.key
+                            className={`p-3 text-xs text-left rounded-xl border transition-all ${answers[q.id] === opt.key
                                 ? 'bg-indigo-950/30 border-indigo-550 text-slate-100 font-medium'
                                 : 'bg-slate-900/30 border-slate-900 text-slate-400 hover:bg-slate-900/60'
-                            }`}
+                              }`}
                           >
                             <span className="font-mono text-indigo-400 font-bold mr-2">{opt.key})</span>
                             {opt.text}
@@ -1822,7 +1844,7 @@ export default function DashboardPage() {
                       <span>Líder {diagnosedProfile}</span>
                     </div>
                   </div>
-                  
+
                   <p className="text-xs text-slate-400 leading-relaxed">
                     {diagnosedProfile === 'TECNICO' && "Seu perfil foca em entregas operacionais objetivas, check-ins diretos e eliminação de impedimentos e burocracia de RH. A IA formulará roteiros enxutos de foco prático."}
                     {diagnosedProfile === 'TRANSICAO' && "Seu perfil é estruturado e requer o método SBI (Situação, Comportamento, Impacto) e inteligência emocional para guiar feedbacks sensíveis com segurança."}
@@ -1847,24 +1869,22 @@ export default function DashboardPage() {
              ========================================== */}
           {activeSection === 'copiloto' && (
             <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-              
+
               {/* Step Progress bar */}
               <div className="relative p-4 rounded-xl border border-slate-900 bg-slate-950/30">
                 <div className="flex justify-between items-center max-w-xl mx-auto relative z-10">
                   {[1, 2, 3, 4, 5].map((s) => (
                     <div key={s} className="flex flex-col items-center gap-1">
-                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-mono text-xs font-bold transition-all ${
-                        meetingStep === s
+                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-mono text-xs font-bold transition-all ${meetingStep === s
                           ? 'bg-indigo-650 border-indigo-500 text-slate-100 shadow-lg shadow-indigo-500/20'
                           : meetingStep > s
-                          ? 'bg-emerald-950/40 border-emerald-500 text-emerald-400'
-                          : 'bg-slate-900 border-slate-800 text-slate-500'
-                      }`}>
+                            ? 'bg-emerald-950/40 border-emerald-500 text-emerald-400'
+                            : 'bg-slate-900 border-slate-800 text-slate-500'
+                        }`}>
                         {meetingStep > s ? <Check className="w-4.5 h-4.5" /> : s}
                       </div>
-                      <span className={`text-[10px] uppercase font-mono tracking-wider font-semibold ${
-                        meetingStep === s ? 'text-indigo-400' : 'text-slate-600'
-                      }`}>
+                      <span className={`text-[10px] uppercase font-mono tracking-wider font-semibold ${meetingStep === s ? 'text-indigo-400' : 'text-slate-600'
+                        }`}>
                         {s === 1 && 'Preparo'}
                         {s === 2 && 'Roteiro'}
                         {s === 3 && 'Condução'}
@@ -1885,10 +1905,10 @@ export default function DashboardPage() {
                     <Video className="w-4.5 h-4.5 text-indigo-400" />
                     <span>Reunião no Google Meet criada: <a href={meetLink} target="_blank" rel="noopener noreferrer" className="underline font-bold text-indigo-400">{meetLink}</a></span>
                   </div>
-                  <a 
-                    href={meetLink} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
+                  <a
+                    href={meetLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="bg-indigo-650 hover:bg-indigo-550 text-slate-100 font-bold px-3 py-1.5 rounded-lg transition-all"
                   >
                     Entrar na Chamada
@@ -1899,15 +1919,15 @@ export default function DashboardPage() {
               {/* STEP 1: PREPARAÇÃO */}
               {meetingStep === 1 && (
                 <div className="grid md:grid-cols-3 gap-6 animate-fade-in">
-                  
+
                   {/* Form fields */}
                   <div className="md:col-span-2 glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
                     <h3 className="font-bold text-slate-200 text-base">Mapeamento da Reunião</h3>
-                    
+
                     <div className="space-y-1">
                       <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Selecionar Liderado</label>
-                      <select 
-                        value={selectedColabId} 
+                      <select
+                        value={selectedColabId}
                         onChange={(e) => setSelectedColabId(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                       >
@@ -1920,8 +1940,8 @@ export default function DashboardPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Maturidade Técnica</label>
-                        <select 
-                          value={collaboratorLevel} 
+                        <select
+                          value={collaboratorLevel}
                           onChange={(e) => setCollaboratorLevel(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                         >
@@ -1933,8 +1953,8 @@ export default function DashboardPage() {
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Modelo de ATA</label>
-                        <select 
-                          value={selectedAtaTemplate} 
+                        <select
+                          value={selectedAtaTemplate}
                           onChange={(e) => setSelectedAtaTemplate(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                         >
@@ -1948,8 +1968,8 @@ export default function DashboardPage() {
 
                     <div className="space-y-1">
                       <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Tipo da Agenda</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={meetingType}
                         onChange={(e) => setMeetingType(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
@@ -1965,11 +1985,11 @@ export default function DashboardPage() {
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-sans"
                       />
                     </div>
-                    
+
                     <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800">
-                      <input 
-                        type="checkbox" 
-                        id="googleMeetToggle" 
+                      <input
+                        type="checkbox"
+                        id="googleMeetToggle"
                         checked={shouldGenerateMeet}
                         onChange={(e) => setShouldGenerateMeet(e.target.checked)}
                         className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
@@ -2026,10 +2046,10 @@ export default function DashboardPage() {
               {/* STEP 2: ROTEIRO & WIDGETS */}
               {meetingStep === 2 && (
                 <div className="grid md:grid-cols-3 gap-6 animate-fade-in">
-                  
+
                   {/* Left: Interactive Widgets (Kanban / Sliders) */}
                   <div className="space-y-6">
-                    
+
                     {/* Visual Kanban Checklist */}
                     <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
                       <h3 className="font-bold text-slate-200 text-sm font-title flex items-center gap-1.5">
@@ -2039,23 +2059,21 @@ export default function DashboardPage() {
                       <p className="text-[11px] text-slate-500">Items de ação para propor e debater na sprint:</p>
                       <div className="space-y-2">
                         {kanbanTasks.map(task => (
-                          <div 
-                            key={task.id} 
+                          <div
+                            key={task.id}
                             onClick={() => {
-                              setKanbanTasks(prev => 
+                              setKanbanTasks(prev =>
                                 prev.map(t => t.id === task.id ? { ...t, status: t.status === 'done' ? 'todo' : 'done' } : t)
                               );
                             }}
-                            className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex items-center justify-between ${
-                              task.status === 'done'
+                            className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex items-center justify-between ${task.status === 'done'
                                 ? 'bg-indigo-950/20 border-indigo-900/60 text-slate-400 line-through'
                                 : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-900'
-                            }`}
+                              }`}
                           >
                             <span>{task.title}</span>
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                              task.status === 'done' ? 'bg-indigo-650 border-indigo-500' : 'border-slate-700'
-                            }`}>
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${task.status === 'done' ? 'bg-indigo-650 border-indigo-500' : 'border-slate-700'
+                              }`}>
                               {task.status === 'done' && <Check className="w-3.5 h-3.5 text-slate-100" />}
                             </div>
                           </div>
@@ -2075,7 +2093,7 @@ export default function DashboardPage() {
                           <p><strong>Mudança de Escopo:</strong> {deliveryAdjustment.scopeChange}</p>
                         </div>
                       )}
-                      
+
                       {/* Sliders */}
                       <div className="space-y-3 pt-2">
                         <div className="space-y-1">
@@ -2083,10 +2101,10 @@ export default function DashboardPage() {
                             <span>Escopo Reduzido</span>
                             <span>Escopo Total</span>
                           </div>
-                          <input 
-                            type="range" 
-                            min="0" max="100" 
-                            value={scopeSlider} 
+                          <input
+                            type="range"
+                            min="0" max="100"
+                            value={scopeSlider}
                             onChange={(e) => setScopeSlider(parseInt(e.target.value))}
                             className="w-full accent-indigo-500"
                           />
@@ -2098,10 +2116,10 @@ export default function DashboardPage() {
                             <span>Prazo Curto</span>
                             <span>Prazo Extendido</span>
                           </div>
-                          <input 
-                            type="range" 
-                            min="0" max="100" 
-                            value={deadlineSlider} 
+                          <input
+                            type="range"
+                            min="0" max="100"
+                            value={deadlineSlider}
                             onChange={(e) => setDeadlineSlider(parseInt(e.target.value))}
                             className="w-full accent-cyan-500"
                           />
@@ -2158,47 +2176,46 @@ export default function DashboardPage() {
               {/* STEP 3: CONDUÇÃO & LIVE ASSIST */}
               {meetingStep === 3 && (
                 <div className="grid md:grid-cols-3 gap-6 animate-fade-in">
-                  
+
                   {/* Live timers and suggestions */}
                   <div className="space-y-6">
-                    
+
                     {/* Timer Widget */}
                     <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-3 text-center">
                       <h4 className="text-slate-400 text-xs font-mono uppercase tracking-wider">Cronômetro da 1:1</h4>
                       <div className="text-3xl font-black font-mono text-indigo-400">
                         {formatTime(liveTalkTime)}
                       </div>
-                      
+
                       <div className="border-t border-slate-900/60 my-2 pt-2 space-y-1.5 text-left">
                         <div className="flex justify-between text-[11px] text-slate-400">
                           <span>Proporção de Fala Líder:</span>
                           <span className="font-bold">{leaderTalkPercentage}%</span>
                         </div>
-                        <input 
-                          type="range" min="10" max="90" 
-                          value={leaderTalkPercentage} 
+                        <input
+                          type="range" min="10" max="90"
+                          value={leaderTalkPercentage}
                           onChange={(e) => setLeaderTalkPercentage(parseInt(e.target.value))}
-                          className="w-full accent-indigo-500" 
+                          className="w-full accent-indigo-500"
                         />
                         <div className="text-[10px] text-slate-500 italic">
-                          {leaderTalkPercentage <= 30 
-                            ? 'Foco excelente! A regra 70/30 está sendo respeitada.' 
+                          {leaderTalkPercentage <= 30
+                            ? 'Foco excelente! A regra 70/30 está sendo respeitada.'
                             : 'Cuidado! A liderança está falando muito. O colaborador deve falar mais.'}
                         </div>
                       </div>
 
                       <div className="flex gap-2 justify-center pt-2">
-                        <button 
+                        <button
                           onClick={timerRef.current ? stopTimer : startTimer}
-                          className={`text-xs px-3 py-1.5 rounded-lg border font-semibold ${
-                            timerRef.current 
-                              ? 'bg-red-950/30 border-red-900/40 text-red-400' 
+                          className={`text-xs px-3 py-1.5 rounded-lg border font-semibold ${timerRef.current
+                              ? 'bg-red-950/30 border-red-900/40 text-red-400'
                               : 'bg-emerald-950/30 border-emerald-900/40 text-emerald-400'
-                          }`}
+                            }`}
                         >
                           {timerRef.current ? 'Pausar' : 'Iniciar'}
                         </button>
-                        <button 
+                        <button
                           onClick={resetTimer}
                           className="bg-slate-900 text-slate-400 border border-slate-800 text-xs px-3 py-1.5 rounded-lg"
                         >
@@ -2253,16 +2270,16 @@ export default function DashboardPage() {
 
                     {/* Input message form */}
                     <form onSubmit={handleSendLiveMessage} className="flex gap-2">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         required
                         value={chatMessage}
                         onChange={(e) => setChatMessage(e.target.value)}
                         placeholder="Ex: 'Estou achando as tarefas de Next.js confusas e me sinto exausta...'"
                         className="flex-1 bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-4 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                       />
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         className="bg-indigo-650 hover:bg-indigo-550 p-2.5 rounded-xl text-slate-100"
                       >
                         <Send className="w-4 h-4" />
@@ -2341,12 +2358,12 @@ export default function DashboardPage() {
 
                   {/* LGPD Consent */}
                   <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-950/20 border border-indigo-900/50">
-                    <input 
-                      type="checkbox" 
-                      id="lgpd" 
+                    <input
+                      type="checkbox"
+                      id="lgpd"
                       checked={lgpdConsent}
                       onChange={(e) => setLgpdConsent(e.target.checked)}
-                      className="w-4 h-4 accent-indigo-500 shrink-0 mt-0.5" 
+                      className="w-4 h-4 accent-indigo-500 shrink-0 mt-0.5"
                     />
                     <label htmlFor="lgpd" className="text-xs text-slate-400 select-none">
                       <strong>[Opt-in LGPD]</strong> O colaborador está presente e outorga consentimento explícito para registrar suas percepções de desenvolvimento profissional. Proibida a inclusão de CPFs, e-mails ou atestados médicos no texto.
@@ -2390,11 +2407,10 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Consistency Analysis Display */}
-                  <div className={`p-4 rounded-xl border ${
-                    evaluationResult.consistencyResult?.consistent 
-                      ? 'bg-emerald-950/20 border-emerald-900/60 text-slate-300' 
+                  <div className={`p-4 rounded-xl border ${evaluationResult.consistencyResult?.consistent
+                      ? 'bg-emerald-950/20 border-emerald-900/60 text-slate-300'
                       : 'bg-amber-950/20 border-amber-900/60 text-slate-300'
-                  } space-y-3`}>
+                    } space-y-3`}>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         {evaluationResult.consistencyResult?.consistent ? (
@@ -2403,14 +2419,13 @@ export default function DashboardPage() {
                           <div className="w-6 h-6 rounded-full bg-amber-950 border border-amber-500 flex items-center justify-center text-amber-400 text-xs font-bold">!</div>
                         )}
                         <h4 className="text-sm font-bold">
-                          {evaluationResult.consistencyResult?.consistent 
-                            ? 'Concordância Detectada de Informações' 
+                          {evaluationResult.consistencyResult?.consistent
+                            ? 'Concordância Detectada de Informações'
                             : 'Divergência / Desalinhamento Detectado'}
                         </h4>
                       </div>
-                      <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
-                        evaluationResult.consistencyResult?.consistent ? 'bg-emerald-900/40 text-emerald-300' : 'bg-amber-900/40 text-amber-300'
-                      }`}>
+                      <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${evaluationResult.consistencyResult?.consistent ? 'bg-emerald-900/40 text-emerald-300' : 'bg-amber-900/40 text-amber-300'
+                        }`}>
                         Alinhamento: {evaluationResult.consistencyResult?.confidenceScore}%
                       </span>
                     </div>
@@ -2445,45 +2460,42 @@ export default function DashboardPage() {
                   {/* Dual digital signature fields */}
                   <div className="border-t border-slate-900 pt-4 space-y-4">
                     <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-400">Dupla Validação (Sign-off)</h4>
-                    
+
                     {/* Switch persona to sign as colab */}
                     <div className="flex items-center gap-2 text-xs text-slate-400 pb-2">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         id="simcolab"
                         checked={isSimulationToggle}
                         onChange={(e) => setIsSimulationToggle(e.target.checked)}
-                        className="w-4 h-4 accent-indigo-500" 
+                        className="w-4 h-4 accent-indigo-500"
                       />
                       <label htmlFor="simcolab" className="cursor-pointer">Simular interruptor de dispositivo do Liderado ({activeColab.name})</label>
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-4">
-                      
+
                       {/* Leader sign */}
-                      <div className={`p-4 rounded-xl border ${
-                        leaderApproved ? 'bg-emerald-950/20 border-emerald-900/40 text-emerald-400' : 'bg-slate-900/40 border-slate-850 text-slate-400'
-                      } flex items-center justify-between`}>
+                      <div className={`p-4 rounded-xl border ${leaderApproved ? 'bg-emerald-950/20 border-emerald-900/40 text-emerald-400' : 'bg-slate-900/40 border-slate-850 text-slate-400'
+                        } flex items-center justify-between`}>
                         <div>
                           <div className="font-bold text-xs">Assinatura Líder</div>
                           <div className="text-[11px] text-slate-500">{currentUser?.name}</div>
                         </div>
                         <button
                           onClick={() => setLeaderApproved(prev => !prev)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                            leaderApproved 
-                              ? 'bg-emerald-600 text-slate-100 border-emerald-500' 
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${leaderApproved
+                              ? 'bg-emerald-600 text-slate-100 border-emerald-500'
                               : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
-                          }`}
+                            }`}
                         >
                           {leaderApproved ? '✓ Assinado' : 'Assinar'}
                         </button>
                       </div>
 
                       {/* Colab sign */}
-                      <div className={`p-4 rounded-xl border ${
-                        collaboratorApproved ? 'bg-emerald-950/20 border-emerald-900/40 text-emerald-400' : 'bg-slate-900/40 border-slate-850 text-slate-400'
-                      } flex items-center justify-between`}>
+                      <div className={`p-4 rounded-xl border ${collaboratorApproved ? 'bg-emerald-950/20 border-emerald-900/40 text-emerald-400' : 'bg-slate-900/40 border-slate-850 text-slate-400'
+                        } flex items-center justify-between`}>
                         <div>
                           <div className="font-bold text-xs">Assinatura Liderado</div>
                           <div className="text-[11px] text-slate-500">{activeColab.name}</div>
@@ -2491,13 +2503,12 @@ export default function DashboardPage() {
                         <button
                           disabled={!isSimulationToggle}
                           onClick={() => setCollaboratorApproved(prev => !prev)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                            collaboratorApproved 
-                              ? 'bg-emerald-600 text-slate-100 border-emerald-500' 
-                              : !isSimulationToggle 
-                              ? 'bg-slate-900 opacity-40 cursor-not-allowed border-slate-800 text-slate-500'
-                              : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
-                          }`}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${collaboratorApproved
+                              ? 'bg-emerald-600 text-slate-100 border-emerald-500'
+                              : !isSimulationToggle
+                                ? 'bg-slate-900 opacity-40 cursor-not-allowed border-slate-800 text-slate-500'
+                                : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
+                            }`}
                         >
                           {collaboratorApproved ? '✓ Assinado' : 'Assinar'}
                         </button>
@@ -2568,11 +2579,10 @@ export default function DashboardPage() {
 
                           <div className="flex gap-2">
                             {hasAudit && (
-                              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                                one.consistencyResult?.consistent 
-                                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/60' 
+                              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${one.consistencyResult?.consistent
+                                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/60'
                                   : 'bg-amber-950 text-amber-400 border border-amber-900/60'
-                              }`}>
+                                }`}>
                                 {one.consistencyResult?.consistent ? 'Consistente' : 'Divergente'}
                               </span>
                             )}
@@ -2634,7 +2644,7 @@ export default function DashboardPage() {
               <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
                 <div className="space-y-1">
                   <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider block">Selecionar Colaborador</label>
-                  <select 
+                  <select
                     id="escColabId"
                     className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                   >
@@ -2679,8 +2689,8 @@ export default function DashboardPage() {
                     }
 
                     // Validate RN01: Check if there's a meeting in last 45 days
-                    const recentMeeting = oneOnOnes.find(o => 
-                      o.collaboratorId === escColabId && 
+                    const recentMeeting = oneOnOnes.find(o =>
+                      o.collaboratorId === escColabId &&
                       (Date.now() - new Date(o.date).getTime()) <= 45 * 24 * 60 * 60 * 1000
                     );
 
@@ -2699,7 +2709,7 @@ export default function DashboardPage() {
                     try {
                       const protocolNum = `SHR-2026-${Math.floor(1000 + Math.random() * 9000)}`;
                       const colab = collaborators.find(c => c.id === escColabId) || MOCK_COLLABORATORS[0];
-                      
+
                       const { error } = await supabase.from('conflicts').insert({
                         protocol: protocolNum,
                         collaborator_id: colab.id,
@@ -2757,7 +2767,7 @@ export default function DashboardPage() {
 
                   <div className="space-y-2 max-w-sm mx-auto">
                     <label className="text-xs text-slate-500 font-mono block">Escolher Colaborador de Teste:</label>
-                    <select 
+                    <select
                       value={simColabId}
                       onChange={(e) => setSimColabId(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none"
@@ -2777,7 +2787,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-6">
-                  
+
                   {/* Status header */}
                   <div className="flex justify-between items-center text-xs border-b border-slate-900 pb-3">
                     <span className="text-slate-400 font-mono">Fase: <strong>{simPhase.toUpperCase()}</strong></span>
@@ -2809,7 +2819,7 @@ export default function DashboardPage() {
                   ) : (
                     <div className="space-y-6 text-center animate-fade-in">
                       <div className="w-12 h-12 rounded-full bg-emerald-950 border border-emerald-500 text-emerald-400 flex items-center justify-center mx-auto text-xl font-bold">✓</div>
-                      
+
                       <div className="space-y-2">
                         <h3 className="font-bold text-slate-200">Simulação Concluída!</h3>
                         <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
@@ -2878,7 +2888,7 @@ export default function DashboardPage() {
                 <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-850 space-y-1 text-center">
                   <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Alinhamento Médio</div>
                   <div className="text-2xl font-black text-emerald-400 font-mono">
-                    {oneOnOnes.length > 0 
+                    {oneOnOnes.length > 0
                       ? `${Math.round(oneOnOnes.reduce((acc, curr) => acc + (curr.consistencyResult?.confidenceScore || 90), 0) / oneOnOnes.length)}%`
                       : 'N/A'}
                   </div>
@@ -2895,10 +2905,10 @@ export default function DashboardPage() {
 
               {/* Tabs for RH: Cadastros vs Conflicts */}
               <div className="grid md:grid-cols-12 gap-6 pt-4">
-                
+
                 {/* Left: Administrative registrations */}
                 <div className="md:col-span-6 space-y-6">
-                  
+
                   {/* Register Leader */}
                   <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
                     <h3 className="font-bold text-slate-200 text-sm flex items-center gap-1.5">
@@ -2909,8 +2919,8 @@ export default function DashboardPage() {
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <label className="text-[10px] text-slate-400 font-mono uppercase">Nome Completo</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             required
                             value={newLeaderName}
                             onChange={(e) => setNewLeaderName(e.target.value)}
@@ -2920,8 +2930,8 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] text-slate-400 font-mono uppercase">Email Corporativo</label>
-                          <input 
-                            type="email" 
+                          <input
+                            type="email"
                             required
                             value={newLeaderEmail}
                             onChange={(e) => setNewLeaderEmail(e.target.value)}
@@ -2932,16 +2942,16 @@ export default function DashboardPage() {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] text-slate-400 font-mono uppercase">Senha Padrão (Mín. 6 Caracteres)</label>
-                        <input 
-                          type="password" 
+                        <input
+                          type="password"
                           required
                           value={newLeaderPassword}
                           onChange={(e) => setNewLeaderPassword(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                         />
                       </div>
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         className="w-full bg-indigo-650 hover:bg-indigo-550 text-slate-100 text-xs font-bold py-2 rounded-lg transition-all"
                       >
                         Registrar Líder no Supabase
@@ -2959,8 +2969,8 @@ export default function DashboardPage() {
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <label className="text-[10px] text-slate-400 font-mono uppercase">Nome Completo</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             required
                             value={newColabName}
                             onChange={(e) => setNewColabName(e.target.value)}
@@ -2970,8 +2980,8 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] text-slate-400 font-mono uppercase">Cargo / Função</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             required
                             value={newColabRole}
                             onChange={(e) => setNewColabRole(e.target.value)}
@@ -2980,11 +2990,11 @@ export default function DashboardPage() {
                           />
                         </div>
                       </div>
-                      
+
                       <div className="space-y-1">
                         <label className="text-[10px] text-slate-400 font-mono uppercase">E-mail Corporativo</label>
-                        <input 
-                          type="email" 
+                        <input
+                          type="email"
                           required
                           value={newColabEmail}
                           onChange={(e) => setNewColabEmail(e.target.value)}
@@ -2992,12 +3002,12 @@ export default function DashboardPage() {
                           className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                         />
                       </div>
-                      
+
                       <div className="grid grid-cols-3 gap-2">
                         <div className="space-y-1">
                           <label className="text-[10px] text-slate-400 font-mono uppercase">DISC</label>
-                          <select 
-                            value={newColabDisc} 
+                          <select
+                            value={newColabDisc}
                             onChange={(e) => setNewColabDisc(e.target.value as any)}
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none"
                           >
@@ -3009,8 +3019,8 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] text-slate-400 font-mono uppercase">Nível</label>
-                          <select 
-                            value={newColabLevel} 
+                          <select
+                            value={newColabLevel}
                             onChange={(e) => setNewColabLevel(e.target.value)}
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none"
                           >
@@ -3022,8 +3032,8 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] text-slate-400 font-mono uppercase">Líder Relacionado</label>
-                          <select 
-                            value={newColabLeaderId} 
+                          <select
+                            value={newColabLeaderId}
                             onChange={(e) => setNewColabLeaderId(e.target.value)}
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none"
                           >
@@ -3035,8 +3045,8 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      <button 
-                        type="submit" 
+                      <button
+                        type="submit"
                         className="w-full bg-cyan-650 hover:bg-cyan-550 text-slate-100 text-xs font-bold py-2 rounded-lg transition-all"
                       >
                         Registrar Colaborador no Supabase
@@ -3050,7 +3060,7 @@ export default function DashboardPage() {
                       <UserCheck className="w-4.5 h-4.5 text-indigo-400" />
                       Gestores Cadastrados ({profiles.filter(p => p.profile !== 'ADMINISTRADOR').length})
                     </h3>
-                    
+
                     {profiles.filter(p => p.profile !== 'ADMINISTRADOR').length === 0 ? (
                       <p className="text-xs text-slate-500 italic">Nenhum gestor cadastrado.</p>
                     ) : (
@@ -3071,13 +3081,12 @@ export default function DashboardPage() {
                                   <div className="text-[10px] text-slate-500">{p.email}</div>
                                 </td>
                                 <td className="py-2">
-                                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                                    p.profile === 'ADMINISTRADOR'
+                                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${p.profile === 'ADMINISTRADOR'
                                       ? 'bg-cyan-950/50 text-cyan-400 border border-cyan-900/40 font-bold'
-                                      : p.profile === 'PENDENTE' 
-                                      ? 'bg-amber-950/50 text-amber-400 border border-amber-900/40' 
-                                      : 'bg-indigo-950/50 text-indigo-300 border border-indigo-900/40'
-                                  }`}>
+                                      : p.profile === 'PENDENTE'
+                                        ? 'bg-amber-950/50 text-amber-400 border border-amber-900/40'
+                                        : 'bg-indigo-950/50 text-indigo-300 border border-indigo-900/40'
+                                    }`}>
                                     {p.profile}
                                   </span>
                                 </td>
@@ -3110,7 +3119,7 @@ export default function DashboardPage() {
                       <ShieldAlert className="w-4 h-4 text-amber-500" />
                       Alertas de Atrito e Mediações de Conflito
                     </h3>
-                    
+
                     {conflicts.length === 0 ? (
                       <p className="text-xs text-slate-500 italic">Nenhum atrito reportado pela IA ou pelos Líderes.</p>
                     ) : (
@@ -3122,16 +3131,15 @@ export default function DashboardPage() {
                                 <strong className="text-slate-200">{conf.collaboratorName}</strong>
                                 <div className="text-[10px] text-slate-500 font-mono mt-0.5">Protocolo: {conf.protocol}</div>
                               </div>
-                              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                                conf.status === 'PENDING' 
-                                  ? 'bg-red-950 text-red-400 border border-red-900/60' 
+                              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${conf.status === 'PENDING'
+                                  ? 'bg-red-950 text-red-400 border border-red-900/60'
                                   : 'bg-emerald-950 text-emerald-400 border border-emerald-900/60'
-                              }`}>
+                                }`}>
                                 {conf.status === 'PENDING' ? 'Pendente' : 'Solucionado'}
                               </span>
                             </div>
                             <p className="text-xs text-slate-400 leading-relaxed font-sans">{conf.description}</p>
-                            
+
                             {conf.status === 'PENDING' ? (
                               <button
                                 onClick={async () => {
@@ -3171,7 +3179,7 @@ export default function DashboardPage() {
                       <User className="w-4.5 h-4.5 text-cyan-400" />
                       Liderados Cadastrados ({collaborators.length})
                     </h3>
-                    
+
                     {collaborators.length === 0 ? (
                       <p className="text-xs text-slate-500 italic">Nenhum colaborador cadastrado.</p>
                     ) : (

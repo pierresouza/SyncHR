@@ -53,17 +53,17 @@ export interface OneOnOne {
   type: string;
   context: string;
   scriptText: string;
-  
+
   // RAW Data Fields
   rawLeaderNotes?: string;
   rawCollaboratorNotes?: string;
   transcription?: string;
   finalSummary?: string;
-  
+
   // Validation signatures
   leaderApproved?: boolean;
   collaboratorApproved?: boolean;
-  
+
   // Consistency Results
   consistencyResult?: ConsistencyCheck;
   ataTemplateId?: string;

@@ -16,25 +16,30 @@ export async function POST(request: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // Verificar se já existe um usuário no Auth com este e-mail e removê-lo (órfão de tentativa anterior)
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const orphanAuthUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    if (orphanAuthUser) {
+      await supabaseAdmin.auth.admin.deleteUser(orphanAuthUser.id);
+      // Também remove o perfil órfão associado
+      await supabaseAdmin.from('profiles').delete().eq('id', orphanAuthUser.id);
+    }
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { name, role, profile: role === "RH" ? "ADMINISTRADOR" : "PENDENTE" }
+      user_metadata: { name, role, profile: role === 'RH' ? 'ADMINISTRADOR' : 'PENDENTE' }
     });
 
     if (authError) {
       return NextResponse.json({ error: authError.message }, { status: 400 });
     }
 
-    // Remover perfil órfão com o mesmo e-mail (criado por tentativas anteriores de signUp)
-    await supabaseAdmin
-      .from('profiles')
-      .delete()
-      .eq('email', email)
-      .neq('id', authData.user.id); // só apaga se o ID for diferente do novo usuário
+    // Remover qualquer perfil com mesmo e-mail que possa ter sobrado
+    await supabaseAdmin.from('profiles').delete().eq('email', email).neq('id', authData.user.id);
 
-    // Inserir/atualizar o perfil correto vinculado ao novo auth user
+    // Criar perfil vinculado ao novo auth user
     const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
       id: authData.user.id,
       email,
