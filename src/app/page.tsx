@@ -253,6 +253,7 @@ export default function DashboardPage() {
     const now = new Date();
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
   });
+  const [meetingDuration, setMeetingDuration] = useState('60');
   const [impedimentContext, setImpedimentContext] = useState('Alinhamento de tarefas ordinárias e checagem de clima.');
 
   const [generatedScript, setGeneratedScript] = useState('');
@@ -775,7 +776,7 @@ export default function DashboardPage() {
           if (accessToken) {
             const { createGoogleMeetEvent } = await import('@/lib/google-calendar');
             const startISO = new Date(`${meetingDate}T${meetingTime}:00`).toISOString();
-            const endISO = new Date(new Date(`${meetingDate}T${meetingTime}:00`).getTime() + 60 * 60 * 1000).toISOString();
+            const endISO = new Date(new Date(`${meetingDate}T${meetingTime}:00`).getTime() + parseInt(meetingDuration) * 60 * 1000).toISOString();
 
             const meetResult = await createGoogleMeetEvent({
               summary: `1:1 SyncHR - ${leaderProfile?.name || 'Gestor'} & ${activeColab.name}`,
@@ -804,6 +805,7 @@ export default function DashboardPage() {
                 <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
                   <p style="margin: 5px 0;"><strong>Modelo da ATA:</strong> ${selectedAtaTemplate.toUpperCase()}</p>
                   <p style="margin: 5px 0;"><strong>Data / Hora:</strong> ${formattedDateTime}</p>
+                  <p style="margin: 5px 0;"><strong>Duração:</strong> ${meetingDuration} minutos</p>
                   <p style="margin: 10px 0 5px 0;"><strong>Link da Videoconferência (${isGoogleMeet ? 'Google Meet' : 'Jitsi Meet'}):</strong> <a href="${meetLinkUrl}" target="_blank" style="color: #4f46e5; font-weight: bold; text-decoration: underline;">Entrar na Reunião</a></p>
                 </div>
                 ${!isGoogleMeet ? `<p style="font-size: 12px; color: #b45309; background-color: #fffbeb; padding: 10px; border-radius: 6px; border: 1px solid #fef3c7;">⚠️ <strong>Nota sobre Transcrição:</strong> Esta reunião ocorrerá no Jitsi Meet. Para obter a captura automática de transcrição via e-mail pelo SyncHR, o gestor precisa estar autenticado com a conta Google corporativa no sistema.</p>` : ''}
@@ -2011,7 +2013,7 @@ export default function DashboardPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Data da Reunião</label>
                         <input
@@ -2029,6 +2031,21 @@ export default function DashboardPage() {
                           onChange={(e) => setMeetingTime(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                         />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Duração</label>
+                        <select
+                          value={meetingDuration}
+                          onChange={(e) => setMeetingDuration(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                        >
+                          <option value="15">15 minutos</option>
+                          <option value="30">30 minutos</option>
+                          <option value="45">45 minutos</option>
+                          <option value="60">60 minutos (1h)</option>
+                          <option value="90">90 minutos (1h30)</option>
+                          <option value="120">120 minutos (2h)</option>
+                        </select>
                       </div>
                     </div>
 
