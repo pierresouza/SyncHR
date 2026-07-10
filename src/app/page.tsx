@@ -39,7 +39,8 @@ import {
   ThumbsUp,
   FileCheck,
   PlusCircle,
-  HelpCircle
+  HelpCircle,
+  Video
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -288,6 +289,8 @@ export default function DashboardPage() {
   const [collaboratorApproved, setCollaboratorApproved] = useState(false);
   const [isSimulationToggle, setIsSimulationToggle] = useState(false); // Switch to sign-off as collaborator
   const [savedMeetingId, setSavedMeetingId] = useState<string | null>(null); // Real-time feedback meeting ID
+  const [meetLink, setMeetLink] = useState('');
+  const [shouldGenerateMeet, setShouldGenerateMeet] = useState(false);
 
   // Email simulation states
   const [simulatedEmails, setSimulatedEmails] = useState<SimulatedEmail[]>([]);
@@ -307,6 +310,7 @@ export default function DashboardPage() {
   const [newLeaderProfile, setNewLeaderProfile] = useState<LeaderProfileType>('TECNICO');
   
   const [newColabName, setNewColabName] = useState('');
+  const [newColabEmail, setNewColabEmail] = useState('');
   const [newColabDisc, setNewColabDisc] = useState<Collaborator['disc']>('DOMINANTE');
   const [newColabLevel, setNewColabLevel] = useState('L1');
   const [newColabRole, setNewColabRole] = useState('');
@@ -315,21 +319,64 @@ export default function DashboardPage() {
   // General App & Database Initialization
   useEffect(() => {
     storage.initialize();
-    const user = storage.getCurrentUser();
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-    setCurrentUser(user);
 
-    // Initial Database Fetch
-    fetchDatabaseData(user);
+    // Listen to Supabase auth state changes (crucial for Google OAuth redirects)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth State Change]:', event);
+      if (session?.user) {
+        const userEmail = session.user.email?.toLowerCase().trim();
+        let { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', userEmail)
+          .single();
+
+        // Auto provision leader profile if not exists in database
+        if (!profile && userEmail) {
+          const { data: insertedProfile } = await supabase
+            .from('profiles')
+            .insert({
+              email: userEmail,
+              name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Gestor Google',
+              role: 'LEADER',
+              profile_type: 'PENDENTE',
+              level_from: 'Coordenador',
+              level_to: 'Gerente'
+            })
+            .select()
+            .single();
+          profile = insertedProfile;
+        }
+
+        if (profile) {
+          const userSession = {
+            id: profile.id,
+            email: profile.email,
+            name: profile.name,
+            role: profile.role as any,
+            profile: profile.profile_type as any
+          };
+          storage.setCurrentUser(userSession);
+          setCurrentUser(userSession);
+          fetchDatabaseData(userSession);
+        }
+      } else {
+        // No active Supabase session
+        storage.setCurrentUser(null);
+        setCurrentUser(null);
+        router.push('/login');
+      }
+    });
 
     // Load simulated emails log
     const rawEmails = localStorage.getItem('synchr_emails');
     if (rawEmails) {
       setSimulatedEmails(JSON.parse(rawEmails));
     }
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   const fetchDatabaseData = async (user: UserSession) => {
@@ -354,7 +401,15 @@ export default function DashboardPage() {
 
       // Check collaborators
       const { data: dbColabs } = await supabase.from('collaborators').select('*');
-      const seededColabs = dbColabs || [];
+      const seededColabs = (dbColabs || []).map(c => ({
+        id: c.id,
+        name: c.name,
+        email: c.email || '',
+        disc: c.disc,
+        level: c.level,
+        role: c.role,
+        leaderId: c.leader_id || undefined
+      })) as Collaborator[];
       setCollaborators(seededColabs);
       if (seededColabs.length > 0 && !selectedColabId) {
         setSelectedColabId(seededColabs[0].id);
@@ -700,6 +755,54 @@ export default function DashboardPage() {
         setDeadlineSlider(hasDeadlineMod ? 85 : 50);
       }
 
+      // If generate meet is checked, call Calendar utility and send invite email
+      if (shouldGenerateMeet) {
+        try {
+          const { createGoogleMeetEvent } = await import('@/lib/google-calendar');
+          const meetResult = await createGoogleMeetEvent({
+            summary: `1:1 SyncHR - ${leaderProfile?.name || 'Gestor'} & ${activeColab.name}`,
+            description: `Alinhamento 1:1 de pauta com modelo ${selectedAtaTemplate.toUpperCase()}. Contexto: ${impedimentContext}`,
+            startDateTime: new Date().toISOString(),
+            endDateTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            attendeeEmail: activeColab.email || 'liderado@clearit.com.br'
+          });
+
+          if (meetResult && meetResult.meetLink) {
+            setMeetLink(meetResult.meetLink);
+
+            if (activeColab.email) {
+              const inviteHtml = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
+                  <h2 style="color: #4f46e5; margin-top: 0;">SyncHR - Convite para Reunião 1:1</h2>
+                  <p>Olá <strong>${activeColab.name}</strong>,</p>
+                  <p>Seu gestor <strong>${leaderProfile?.name || 'Gestor'}</strong> agendou um alinhamento individual 1:1 com você.</p>
+                  <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
+                    <p style="margin: 5px 0;"><strong>Modelo da ATA:</strong> ${selectedAtaTemplate.toUpperCase()}</p>
+                    <p style="margin: 5px 0;"><strong>Data / Hora:</strong> Hoje (agora)</p>
+                    <p style="margin: 10px 0 5px 0;"><strong>Link do Google Meet:</strong> <a href="${meetResult.meetLink}" target="_blank" style="color: #4f46e5; font-weight: bold; text-decoration: underline;">Entrar na Reunião</a></p>
+                  </div>
+                  <p>Por favor, acesse o link no horário combinado. Nos vemos lá!</p>
+                  <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+                  <p style="font-size: 11px; color: #64748b; margin-bottom: 0;">Este é um e-mail automático gerado pelo ecossistema SyncHR Smart Leading da Clear IT.</p>
+                </div>
+              `;
+
+              await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: activeColab.email,
+                  subject: `Convite 1:1: ${leaderProfile?.name || 'Gestor'} & ${activeColab.name}`,
+                  html: inviteHtml
+                })
+              });
+            }
+          }
+        } catch (calendarErr) {
+          console.error('[Google Calendar/Resend integration error]:', calendarErr);
+        }
+      }
+
       setMeetingStep(2); // Move to Step 2
     } catch (e: any) {
       console.error(e);
@@ -844,9 +947,43 @@ export default function DashboardPage() {
       
       const link = `${window.location.origin}/feedback?id=${oneOnOneData.id}`;
       navigator.clipboard.writeText(link);
+
+      // Envia e-mail de notificação de feedback para o colaborador via Resend
+      if (activeColab.email) {
+        try {
+          const feedbackHtml = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
+              <h2 style="color: #4f46e5; margin-top: 0;">SyncHR - Validação de Reunião 1:1</h2>
+              <p>Olá <strong>${activeColab.name}</strong>,</p>
+              <p>Sua reunião individual de 1:1 com o gestor <strong>${leaderProfile?.name || 'Gestor'}</strong> foi concluída e a ata preliminar foi gerada.</p>
+              <p>Para ler a pauta, tarefas Kanban acordadas e registrar o seu parecer e consentimento digital, por favor acesse a página de validação bilateral no link abaixo:</p>
+              <div style="text-align: center; margin: 25px 0;">
+                <a href="${link}" target="_blank" style="background-color: #4f46e5; color: #ffffff; font-weight: bold; text-decoration: none; padding: 12px 24px; border-radius: 8px; display: inline-block;">Visualizar e Assinar Ata</a>
+              </div>
+              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+              <p style="font-size: 11px; color: #64748b; margin-bottom: 0;">Este é um e-mail automático enviado de forma segura sob conformidade da LGPD pelo ecossistema SyncHR.</p>
+            </div>
+          `;
+
+          await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: activeColab.email,
+              subject: `SyncHR: Assine sua ata de 1:1 com ${leaderProfile?.name || 'Gestor'}`,
+              html: feedbackHtml
+            })
+          });
+        } catch (emailErr) {
+          console.error('[Error sending feedback email]:', emailErr);
+        }
+      }
+
       Swal.fire({
-        title: 'Link Gerado e Copiado!',
-        text: 'Ata salva no banco de dados. O link de feedback foi copiado para envio: ' + link,
+        title: 'Link Gerado!',
+        text: activeColab.email 
+          ? `Ata salva no banco. O link de feedback foi enviado para ${activeColab.email} e também copiado para sua área de transferência.`
+          : 'Ata salva no banco de dados. O link de feedback foi copiado para envio: ' + link,
         icon: 'success',
         background: '#0f172a',
         color: '#cbd5e1',
@@ -926,6 +1063,41 @@ export default function DashboardPage() {
           has_history: true,
           is_bypass: false
         });
+
+        // Disparar Alerta de Atrito por E-mail para o RH via Resend
+        try {
+          const rhEmail = 'rh.priscila@clearit.com.br';
+          const alertHtml = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 2px solid #dc2626; border-radius: 12px; background-color: #fef2f2; color: #991b1b;">
+              <h2 style="color: #dc2626; margin-top: 0;">🚨 Alerta Crítico: Atrito / Conflito Detectado</h2>
+              <p>Olá Priscila (RH),</p>
+              <p>O SyncHR AI Auditor identificou um **desalinhamento grave ou potencial conflito** em uma reunião de 1:1 realizada recentemente.</p>
+              <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #fee2e2; color: #1e293b;">
+                <p style="margin: 5px 0;"><strong>Protocolo:</strong> <code>${protocol}</code></p>
+                <p style="margin: 5px 0;"><strong>Colaborador:</strong> ${activeColab.name} (${activeColab.role})</p>
+                <p style="margin: 5px 0;"><strong>Gestor:</strong> ${leaderProfile?.name || 'Gestor'}</p>
+                <p style="margin: 5px 0;"><strong>Data:</strong> ${oneOnOneData.date}</p>
+                <p style="margin: 10px 0 5px 0;"><strong>Análise da Consistência:</strong></p>
+                <p style="margin: 5px 0; font-style: italic; color: #475569;">"${evaluationResult?.consistencyResult?.details || 'Divergência de percepção detectada entre as notas do gestor e do colaborador.'}"</p>
+              </div>
+              <p>Por favor, acesse o Painel do RH na plataforma para mediar esta ocorrência.</p>
+              <hr style="border: 0; border-top: 1px solid #fee2e2; margin: 25px 0;" />
+              <p style="font-size: 11px; color: #991b1b; margin-bottom: 0;">Este é um alerta crítico de conformidade e governança corporativa gerado automaticamente pelo SyncHR.</p>
+            </div>
+          `;
+
+          await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: rhEmail,
+              subject: `🚨 ALERTA CRÍTICO: Conflito de 1:1 - ${activeColab.name}`,
+              html: alertHtml
+            })
+          });
+        } catch (emailErr) {
+          console.error('[Error sending conflict email alert to RH]:', emailErr);
+        }
       }
 
       Swal.fire({
@@ -1019,7 +1191,7 @@ export default function DashboardPage() {
 
   const handleRHRegisterCollaborator = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newColabName.trim() || !newColabRole.trim()) {
+    if (!newColabName.trim() || !newColabRole.trim() || !newColabEmail.trim()) {
       Swal.fire('Atenção', 'Preencha todos os campos do colaborador.', 'warning');
       return;
     }
@@ -1027,6 +1199,7 @@ export default function DashboardPage() {
     try {
       const { error } = await supabase.from('collaborators').insert({
         name: newColabName,
+        email: newColabEmail,
         disc: newColabDisc,
         level: newColabLevel,
         role: newColabRole,
@@ -1044,6 +1217,7 @@ export default function DashboardPage() {
       });
 
       setNewColabName('');
+      setNewColabEmail('');
       setNewColabRole('');
       fetchDatabaseData(currentUser!);
     } catch (err: any) {
@@ -1718,6 +1892,24 @@ export default function DashboardPage() {
                 <div className="absolute top-[28px] left-[15%] right-[15%] h-[1px] bg-slate-900 z-0" />
               </div>
 
+              {/* Google Meet Banner */}
+              {meetLink && (
+                <div className="flex items-center justify-between p-3.5 rounded-xl border border-indigo-900 bg-indigo-950/20 text-xs">
+                  <div className="flex items-center gap-2 text-indigo-300">
+                    <Video className="w-4.5 h-4.5 text-indigo-400" />
+                    <span>Reunião no Google Meet criada: <a href={meetLink} target="_blank" rel="noopener noreferrer" className="underline font-bold text-indigo-400">{meetLink}</a></span>
+                  </div>
+                  <a 
+                    href={meetLink} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="bg-indigo-650 hover:bg-indigo-550 text-slate-100 font-bold px-3 py-1.5 rounded-lg transition-all"
+                  >
+                    Entrar na Chamada
+                  </a>
+                </div>
+              )}
+
               {/* STEP 1: PREPARAÇÃO */}
               {meetingStep === 1 && (
                 <div className="grid md:grid-cols-3 gap-6 animate-fade-in">
@@ -1786,6 +1978,19 @@ export default function DashboardPage() {
                         onChange={(e) => setImpedimentContext(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-sans"
                       />
+                    </div>
+                    
+                    <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800">
+                      <input 
+                        type="checkbox" 
+                        id="googleMeetToggle" 
+                        checked={shouldGenerateMeet}
+                        onChange={(e) => setShouldGenerateMeet(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <label htmlFor="googleMeetToggle" className="text-xs text-slate-300 font-semibold cursor-pointer select-none">
+                        Agendar chamada no Google Meet & enviar e-mail convite via Resend
+                      </label>
                     </div>
 
                     <button
@@ -2788,6 +2993,18 @@ export default function DashboardPage() {
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                           />
                         </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 font-mono uppercase">E-mail Corporativo</label>
+                        <input 
+                          type="email" 
+                          required
+                          value={newColabEmail}
+                          onChange={(e) => setNewColabEmail(e.target.value)}
+                          placeholder="Ex: joao.silva@clearit.com.br"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                        />
                       </div>
                       
                       <div className="grid grid-cols-3 gap-2">

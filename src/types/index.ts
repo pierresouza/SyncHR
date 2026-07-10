@@ -32,6 +32,7 @@ export interface LeaderProfile {
 export interface Collaborator {
   id: string;
   name: string;
+  email?: string;
   disc: DiscProfileType;
   level: string; // L1 | L2 | L3 | L4
   role: string;

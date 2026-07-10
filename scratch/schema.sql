@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE TABLE IF NOT EXISTS public.collaborators (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
+    email TEXT,
     disc TEXT NOT NULL CHECK (disc IN ('DOMINANTE', 'ESTAVEL', 'ANALITICO', 'INFLUENTE')),
     level TEXT NOT NULL CHECK (level IN ('L1', 'L2', 'L3', 'L4')),
     role TEXT NOT NULL,
