@@ -767,33 +767,24 @@ export default function DashboardPage() {
           const { data: sessionData } = await supabase.auth.getSession();
           const accessToken = sessionData?.session?.provider_token || undefined;
 
-          let meetLinkUrl = '';
-          let isGoogleMeet = false;
-
           const formattedDate = meetingDate.split('-').reverse().join('/');
           const formattedDateTime = `${formattedDate} às ${meetingTime}`;
 
-          if (accessToken) {
-            const { createGoogleMeetEvent } = await import('@/lib/google-calendar');
-            const startISO = new Date(`${meetingDate}T${meetingTime}:00`).toISOString();
-            const endISO = new Date(new Date(`${meetingDate}T${meetingTime}:00`).getTime() + parseInt(meetingDuration) * 60 * 1000).toISOString();
+          const { createGoogleMeetEvent } = await import('@/lib/google-calendar');
+          const startISO = new Date(`${meetingDate}T${meetingTime}:00`).toISOString();
+          const endISO = new Date(new Date(`${meetingDate}T${meetingTime}:00`).getTime() + parseInt(meetingDuration) * 60 * 1000).toISOString();
 
-            const meetResult = await createGoogleMeetEvent({
-              summary: `1:1 SyncHR - ${leaderProfile?.name || 'Gestor'} & ${activeColab.name}`,
-              description: `Alinhamento 1:1 de pauta com modelo ${selectedAtaTemplate.toUpperCase()}. Contexto: ${impedimentContext}`,
-              startDateTime: startISO,
-              endDateTime: endISO,
-              attendeeEmail: activeColab.email || 'liderado@clearit.com.br',
-              accessToken
-            });
-            meetLinkUrl = meetResult.meetLink;
-            isGoogleMeet = !meetResult.simulated;
-          } else {
-            // Fallback para Jitsi Meet para termos uma chamada funcional instantânea sem login do Google
-            const roomName = `SyncHR-${activeColab.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, '-')}-${Math.floor(1000 + Math.random() * 9000)}`;
-            meetLinkUrl = `https://meet.jit.si/${roomName}`;
-          }
+          const meetResult = await createGoogleMeetEvent({
+            summary: `1:1 SyncHR - ${leaderProfile?.name || 'Gestor'} & ${activeColab.name}`,
+            description: `Alinhamento 1:1 de pauta com modelo ${selectedAtaTemplate.toUpperCase()}. Contexto: ${impedimentContext}`,
+            startDateTime: startISO,
+            endDateTime: endISO,
+            attendeeEmail: activeColab.email || 'liderado@clearit.com.br',
+            accessToken
+          });
 
+          const meetLinkUrl = meetResult.meetLink;
+          const isGoogleMeetReal = !meetResult.simulated;
           setMeetLink(meetLinkUrl);
 
           if (activeColab.email) {
@@ -806,9 +797,9 @@ export default function DashboardPage() {
                   <p style="margin: 5px 0;"><strong>Modelo da ATA:</strong> ${selectedAtaTemplate.toUpperCase()}</p>
                   <p style="margin: 5px 0;"><strong>Data / Hora:</strong> ${formattedDateTime}</p>
                   <p style="margin: 5px 0;"><strong>Duração:</strong> ${meetingDuration} minutos</p>
-                  <p style="margin: 10px 0 5px 0;"><strong>Link da Videoconferência (${isGoogleMeet ? 'Google Meet' : 'Jitsi Meet'}):</strong> <a href="${meetLinkUrl}" target="_blank" style="color: #4f46e5; font-weight: bold; text-decoration: underline;">Entrar na Reunião</a></p>
+                  <p style="margin: 10px 0 5px 0;"><strong>Link da Reunião (Google Meet):</strong> <a href="${meetLinkUrl}" target="_blank" style="color: #4f46e5; font-weight: bold; text-decoration: underline;">Entrar no Google Meet</a></p>
                 </div>
-                ${!isGoogleMeet ? `<p style="font-size: 12px; color: #b45309; background-color: #fffbeb; padding: 10px; border-radius: 6px; border: 1px solid #fef3c7;">⚠️ <strong>Nota sobre Transcrição:</strong> Esta reunião ocorrerá no Jitsi Meet. Para obter a captura automática de transcrição via e-mail pelo SyncHR, o gestor precisa estar autenticado com a conta Google corporativa no sistema.</p>` : ''}
+                ${!isGoogleMeetReal ? `<p style="font-size: 12px; color: #b45309; background-color: #fffbeb; padding: 10px; border-radius: 6px; border: 1px solid #fef3c7;">⚠️ <strong>Nota sobre Transcrição:</strong> Esta reunião foi gerada com um link simulado do Google Meet. Para obter a gravação e a captura automática de transcrição via e-mail pelo SyncHR, o gestor precisa estar logado com a conta Google corporativa autorizada no sistema.</p>` : ''}
                 <p>Por favor, acesse o link no horário combinado. Nos vemos lá!</p>
                 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
                 <p style="font-size: 11px; color: #64748b; margin-bottom: 0;">Este é um e-mail automático gerado pelo ecossistema SyncHR Smart Leading da Clear IT.</p>
@@ -1930,7 +1921,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between p-3.5 rounded-xl border border-indigo-900 bg-indigo-950/20 text-xs">
                   <div className="flex items-center gap-2 text-indigo-300">
                     <Video className="w-4.5 h-4.5 text-indigo-400" />
-                    <span>Videoconferência (Jitsi Meet) criada: <a href={meetLink} target="_blank" rel="noopener noreferrer" className="underline font-bold text-indigo-400">{meetLink}</a></span>
+                    <span>Reunião no Google Meet criada: <a href={meetLink} target="_blank" rel="noopener noreferrer" className="underline font-bold text-indigo-400">{meetLink}</a></span>
                   </div>
                   <a
                     href={meetLink}
@@ -2058,7 +2049,7 @@ export default function DashboardPage() {
                         className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                       />
                       <label htmlFor="googleMeetToggle" className="text-xs text-slate-300 font-semibold cursor-pointer select-none">
-                        Agendar videoconferência (Jitsi Meet) & enviar convite por e-mail
+                        Agendar chamada no Google Meet & enviar convite por e-mail
                       </label>
                     </div>
 
