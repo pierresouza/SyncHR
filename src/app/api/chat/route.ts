@@ -1,33 +1,33 @@
 import { NextResponse } from 'next/server';
+import { callGemini } from '@/lib/gemini';
 
 export async function POST(request: Request) {
   try {
     const { message, profile } = await request.json();
     
-    // Simulate real-time processing delay
-    await new Promise((resolve) => setTimeout(resolve, 400));
-
-    let aiResponse = "";
-    const cleanMsg = message.toLowerCase();
-
-    if (cleanMsg.includes("sobrecarregado")) {
-      if (profile === 'TECNICO') {
-        aiResponse = "Oriente o líder a revisar a distribuição de tarefas técnicas da sprint. Questione: 'Quais itens do backlog podemos repassar ou adiar?'";
-      } else if (profile === 'ENGAJADO') {
-        aiResponse = "Ação rápida recomendada: Faça um exercício de 2 minutos priorizando as top 3 entregas dele e limpe as distrações secundárias da agenda.";
-      } else {
-        aiResponse = "Foque na escuta ativa. Pergunte: 'Entendo perfeitamente. O que especificamente na carga atual está demandando mais de você? É um bloqueio técnico ou volume?'";
-      }
-    } else if (cleanMsg.includes("pdi") || cleanMsg.includes("carreira")) {
-      aiResponse = "Conecte a tarefa atual a uma competência técnica L3/L4. Pergunte quais tecnologias do projeto ele quer dominar nas próximas sprints e construam uma meta simples.";
-    } else if (cleanMsg.includes("confiança") || cleanMsg.includes("anterior")) {
-      aiResponse = "Valide o sentimento (Regra 70/30). Pergunte o que causou essa percepção e combinem um registro transparente compartilhado das atas de 1:1 a partir de hoje para reconstruir a relação.";
-    } else {
-      aiResponse = `[IA de Tempo Real] Para o perfil de liderança ${profile}, guie a conversa pedindo que ele detalhe o ponto levantado: "${message}". Lembre-se de manter a regra 70/30 (ouça 70%, fale 30%).`;
+    if (!message) {
+      return NextResponse.json({ error: 'Mensagem vazia.' }, { status: 400 });
     }
 
-    return NextResponse.json({ text: aiResponse });
-  } catch (error) {
-    return NextResponse.json({ error: 'Erro interno de processamento.' }, { status: 500 });
+    const systemInstruction = `Você é a IA de Live Assist do Smart Leading. Sua missão é apoiar o líder com perguntas de aprofundamento ou ações imediatas durante a reunião 1:1, baseando-se no que o colaborador disse.
+    
+    Regras estritas baseadas no perfil de liderança selecionado (${profile || 'TRANSICAO'}):
+    - TECNICO: Forneça orientações 100% práticas, curtas e sem jargões corporativos ("sinergia", "transversalidade", "ownership"). Foco em prazos, impedimentos técnicos e apoio concreto.
+    - TRANSICAO: Forneça sugestões detalhadas passo a passo. Sugira perguntas baseadas em inteligência emocional e no modelo SBI (Situação, Comportamento, Impacto) para guiar o líder.
+    - ENGAJADO: Forneça resumos executivos rápidos e tópicos acionáveis que tomem menos de 2 minutos para processar.
+    
+    Diretriz Geral: A linguagem deve incentivar a escuta ativa do líder (Regra 70/30: o liderado deve falar 70% do tempo e o líder 30%). Forneça apenas de 2 a 3 sugestões curtas de perguntas diretas para o líder fazer.`;
+
+    const prompt = `O liderado acabou de dizer o seguinte na reunião de 1:1:
+    "${message}"
+    
+    Forneça 2 a 3 opções curtas de perguntas ou ações para o líder responder ou aprofundar, formatadas como tópicos diretos e rápidos de ler.`;
+
+    const responseText = await callGemini(systemInstruction, prompt);
+    
+    return NextResponse.json({ text: responseText.trim() });
+  } catch (error: any) {
+    console.error('Erro na rota de live chat:', error);
+    return NextResponse.json({ error: error.message || 'Erro interno no live assist.' }, { status: 500 });
   }
 }

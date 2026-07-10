@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { MOCK_USERS, storage } from '@/lib/storage';
 import { KeyRound, Mail, AlertTriangle, ShieldAlert, Check, User } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,33 +29,124 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      const usersList = storage.getUsers();
-      const match = usersList.find(
+    try {
+      // 1. Tentar logar via Supabase Auth
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      // 2. Se falhar por usuário inexistente, mas for uma conta Mock, realizar auto-cadastro
+      const mockUser = MOCK_USERS.find(
         (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
       );
 
-      if (match) {
+      if (authError && mockUser) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name: mockUser.name,
+              role: mockUser.role,
+              profile: mockUser.profile,
+            }
+          }
+        });
+
+        if (!signUpError && signUpData.user) {
+          // Criar registro na tabela public.profiles
+          await supabase.from('profiles').insert({
+            id: signUpData.user.id,
+            email: mockUser.email,
+            name: mockUser.name,
+            role: mockUser.role,
+            profile_type: mockUser.profile,
+            level_from: 'Coordenador',
+            level_to: 'Gerente'
+          });
+
+          // Tentar login novamente
+          const reSignIn = await supabase.auth.signInWithPassword({ email, password });
+          authData = reSignIn.data;
+          authError = reSignIn.error;
+        } else if (signUpError) {
+          authError = signUpError;
+        }
+      }
+
+      if (authError) {
+        if (authError.message.includes('Email not confirmed')) {
+          setError('Por favor, confirme seu e-mail ou desative a confirmação de e-mail nas configurações do Supabase.');
+        } else if (authError.message.toLowerCase().includes('invalid grant') || authError.message.toLowerCase().includes('invalid credentials') || authError.message.toLowerCase().includes('invalid login credentials')) {
+          setError('Credenciais inválidas. Verifique seu e-mail e senha.');
+        } else {
+          setError(authError.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (authData?.user) {
+        // Buscar perfil na tabela public.profiles
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          // Fallback caso o profile público não tenha sido criado
+          console.warn('Perfil público não encontrado, criando...', profileError);
+          const meta = authData.user.user_metadata;
+          const { data: newProfile } = await supabase.from('profiles').insert({
+            id: authData.user.id,
+            email: authData.user.email!,
+            name: meta?.name || 'Usuário',
+            role: meta?.role || 'LEADER',
+            profile_type: meta?.profile || 'PENDENTE',
+            level_from: 'Coordenador',
+            level_to: 'Gerente'
+          }).select().single();
+
+          if (newProfile) {
+            storage.setCurrentUser({
+              id: newProfile.id,
+              email: newProfile.email,
+              name: newProfile.name,
+              role: newProfile.role as any,
+              profile: newProfile.profile_type as any,
+            });
+            router.push('/');
+            return;
+          }
+          setError('Erro ao carregar ou criar o perfil do usuário.');
+          setLoading(false);
+          return;
+        }
+
         storage.setCurrentUser({
-          email: match.email,
-          name: match.name,
-          role: match.role,
-          profile: match.profile,
+          id: profile.id,
+          email: profile.email,
+          name: profile.name,
+          role: profile.role,
+          profile: profile.profile_type,
         });
         router.push('/');
-      } else {
-        setError('Credenciais inválidas. Verifique o email e a senha digitados.');
-        setLoading(false);
       }
-    }, 500);
+    } catch (err: any) {
+      setError('Erro inesperado: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -65,38 +157,56 @@ export default function LoginPage() {
       return;
     }
 
-    setTimeout(() => {
-      const success = storage.saveUser({
-        name: regName,
+    try {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: regEmail,
         password: regPassword,
-        role: regRole,
-        profile: 'PENDENTE'
+        options: {
+          data: {
+            name: regName,
+            role: regRole,
+            profile: regRole === 'RH' ? 'ADMINISTRADOR' : 'PENDENTE'
+          }
+        }
       });
 
-      if (success) {
-        setEmail(regEmail);
-        setPassword(regPassword);
-        setMode('login');
-        setRegName('');
-        setRegEmail('');
-        setRegPassword('');
-        setRegRole('LEADER');
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (signUpData.user) {
+        // Criar registro público correspondente
+        await supabase.from('profiles').insert({
+          id: signUpData.user.id,
+          email: regEmail,
+          name: regName,
+          role: regRole,
+          profile_type: regRole === 'RH' ? 'ADMINISTRADOR' : 'PENDENTE',
+          level_from: 'Coordenador',
+          level_to: 'Gerente'
+        });
 
         Swal.fire({
           title: 'Cadastro Realizado!',
-          text: 'Usuário cadastrado com sucesso! Suas credenciais foram gravadas localmente no localStorage.',
+          text: 'Usuário cadastrado com sucesso! Caso necessário, confirme seu e-mail antes de logar.',
           icon: 'success',
           background: '#0f172a',
           color: '#cbd5e1',
           confirmButtonColor: '#4f46e5',
           customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
         });
-      } else {
-        setError('Este e-mail já está cadastrado no sistema.');
+
+        setMode('login');
+        setEmail(regEmail);
+        setPassword(regPassword);
       }
+    } catch (err: any) {
+      setError('Erro ao cadastrar: ' + err.message);
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   const handleSelectMock = (u: typeof MOCK_USERS[number]) => {
@@ -108,7 +218,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center p-4 relative z-10 font-sans">
       <div className="w-full max-w-[950px] grid md:grid-cols-12 gap-8 items-center">
-        
+
         {/* Left Side: Brand Text & Pain points presentation */}
         <div className="md:col-span-6 text-left space-y-6">
           <div className="flex items-center gap-3">
@@ -126,8 +236,8 @@ export default function LoginPage() {
               Calibração de Liderança & Roteiros Inteligentes
             </h1>
             <p className="text-slate-400 text-sm leading-relaxed">
-              O copiloto de IA construído especificamente para a Clear IT Brasil. 
-              Gere pautas estruturadas, simule conversas difíceis e gerencie 
+              O copiloto de IA construído especificamente para a Clear IT Brasil.
+              Gere pautas estruturadas, simule conversas difíceis e gerencie
               escalações de conflitos de forma ética e em total conformidade com a LGPD.
             </p>
           </div>
@@ -147,7 +257,7 @@ export default function LoginPage() {
         {/* Right Side: Glassmorphism Login Card */}
         <div className="md:col-span-6 w-full">
           <div className="glass-card p-8 rounded-2xl border border-slate-800/60 bg-slate-950/70 shadow-2xl space-y-6">
-            
+
             {mode === 'login' ? (
               <>
                 <div className="space-y-1">
@@ -206,45 +316,31 @@ export default function LoginPage() {
                   </button>
                 </form>
 
-                <div className="text-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => { setMode('register'); setError(''); }}
-                    className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-all hover:underline font-mono uppercase tracking-wider"
-                  >
-                    Não tem conta? Cadastre-se
-                  </button>
-                </div>
-
                 {/* Test Accounts Segment */}
                 <div className="pt-4 border-t border-slate-900 space-y-2">
                   <div className="flex items-center gap-1.5 text-xs tracking-wide text-slate-400 uppercase font-mono">
                     <ShieldAlert className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Simulação de Contas de Teste (Clique para preencher)</span>
+                    <span>Acesso Rápido de Teste (Administração)</span>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-2 text-left">
-                    {MOCK_USERS.map((user) => {
-                      const isPending = user.email.includes('novo');
+
+                  <div className="grid grid-cols-1 gap-2 text-left">
+                    {MOCK_USERS.filter(u => u.role === 'RH').map((user) => {
                       const isRH = user.role === 'RH';
-                      
+
                       return (
                         <button
                           key={user.email}
                           onClick={() => handleSelectMock(user)}
                           type="button"
-                          className="p-2 text-xs rounded-lg bg-slate-900/40 border border-slate-900 hover:bg-slate-900/80 hover:border-slate-800/80 text-slate-300 transition-all truncate"
+                          className="p-2 text-xs rounded-lg bg-slate-900/40 border border-slate-900 hover:bg-slate-900/80 hover:border-slate-800/80 text-slate-300 transition-all truncate flex items-center justify-between"
                         >
-                          <div className="font-semibold text-slate-200 truncate">{user.name}</div>
-                          <div className="text-xs text-slate-500 flex justify-between items-center mt-0.5">
-                            <span>{user.email.split('@')[0]}</span>
-                            {isPending && (
-                              <span className="text-[11px] bg-amber-950/50 text-amber-400 border border-amber-900/40 px-1 rounded">Novo</span>
-                            )}
-                            {isRH && (
-                              <span className="text-[11px] bg-cyan-950/50 text-cyan-400 border border-cyan-900/40 px-1 rounded">RH</span>
-                            )}
+                          <div>
+                            <div className="font-semibold text-slate-200 truncate">{user.name}</div>
+                            <div className="text-xs text-slate-500">{user.email}</div>
                           </div>
+                          {isRH && (
+                            <span className="text-[11px] bg-cyan-950/50 text-cyan-400 border border-cyan-900/40 px-1.5 py-0.5 rounded font-mono font-bold">RH</span>
+                          )}
                         </button>
                       );
                     })}
@@ -323,22 +419,20 @@ export default function LoginPage() {
                       <button
                         type="button"
                         onClick={() => setRegRole('LEADER')}
-                        className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
-                          regRole === 'LEADER'
+                        className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${regRole === 'LEADER'
                             ? 'bg-indigo-900/20 border-indigo-500 text-indigo-300'
                             : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900/80'
-                        }`}
+                          }`}
                       >
                         Líder / Gestor
                       </button>
                       <button
                         type="button"
                         onClick={() => setRegRole('RH')}
-                        className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
-                          regRole === 'RH'
+                        className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${regRole === 'RH'
                             ? 'bg-indigo-900/20 border-indigo-500 text-indigo-300'
                             : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900/80'
-                        }`}
+                          }`}
                       >
                         Administrador RH
                       </button>

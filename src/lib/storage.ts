@@ -1,20 +1,16 @@
-import { 
-  UserSession, 
-  LeaderProfile, 
-  Collaborator, 
-  OneOnOne, 
-  ConflictEscalation, 
+import {
+  UserSession,
+  LeaderProfile,
+  Collaborator,
+  OneOnOne,
+  ConflictEscalation,
   SystemPrompts,
   UserRecord
 } from '@/types';
 
 // Mock credentials mapping
 export const MOCK_USERS = [
-  { email: 'lider.tech@clearit.com.br', password: 'tech123', name: 'Gestor Principal (Tech)', role: 'LEADER', profile: 'TECNICO' },
-  { email: 'lider.transicao@clearit.com.br', password: 'trans123', name: 'Gestor Auxiliar (Transição)', role: 'LEADER', profile: 'TRANSICAO' },
-  { email: 'lider.engajado@clearit.com.br', password: 'engajado123', name: 'Gestor Pessoas (Engajado)', role: 'LEADER', profile: 'ENGAJADO' },
-  { email: 'lider.novo@clearit.com.br', password: 'novo123', name: 'Gestor Novo (Pendente)', role: 'LEADER', profile: 'PENDENTE' },
-  { email: 'rh.priscila@clearit.com.br', password: 'rh123', name: 'Priscila Bacelar (RH)', role: 'RH', profile: 'PENDENTE' }
+  { email: 'rh.priscila@clearit.com.br', password: 'rh123456', name: 'Priscila Bacelar (RH)', role: 'RH', profile: 'ADMINISTRADOR' }
 ] as const;
 
 export const DEFAULT_PROMPTS: SystemPrompts = {
@@ -114,7 +110,7 @@ export const storage = {
     if (!this.isBrowser()) return;
     if (user) {
       localStorage.setItem('synchr_user', JSON.stringify(user));
-      
+
       // Seed leader profile automatically for pre-defined mock accounts
       if (user.role === 'LEADER' && user.profile !== 'PENDENTE') {
         const existingProfile = this.getLeaderProfile();

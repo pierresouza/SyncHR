@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { storage, MOCK_COLLABORATORS } from '@/lib/storage';
+import { supabase } from '@/lib/supabase';
+import { storage, MOCK_USERS, MOCK_COLLABORATORS } from '@/lib/storage';
 import { 
   LeaderProfileType, 
   Collaborator, 
@@ -10,7 +11,8 @@ import {
   ConflictEscalation, 
   UserSession, 
   LeaderProfile,
-  SimulatedEmail
+  SimulatedEmail,
+  ConsistencyCheck
 } from '@/types';
 import { 
   User, 
@@ -30,12 +32,18 @@ import {
   Database,
   UserCheck,
   Mail,
-  Play
+  Play,
+  ClipboardList,
+  AlertTriangle,
+  Clock,
+  ThumbsUp,
+  FileCheck,
+  PlusCircle,
+  HelpCircle
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
-type SectionId = 'onboarding' | 'copiloto' | 'escalation' | 'rh' | 'historico' | 'simulador';
-
+type SectionId = 'onboarding' | 'copiloto' | 'escalation' | 'rh' | 'historico' | 'simulador' | 'about';
 type SimPhase = 'intro' | 'abertura' | 'desenvolvimento' | 'fechamento' | 'feedback';
 
 interface SimAnswerOption {
@@ -148,220 +156,68 @@ const SIMULATOR_SCENARIOS: Record<string, SimScenarioData> = {
       colabSpeech: '"Eu... eu ando muito cansada. Tem muita tarefa mudando de prioridade a cada três dias e sinto que não estou entregando nada com qualidade."',
       options: [
         {
-          text: '"Sinto muito que esteja se sentindo assim, Mariana. A sua saúde e estabilidade são essenciais. Vamos conversar sobre isso com calma."',
+          text: '"Mariana, sinto muito que esteja passando por isso. Vamos revisar a pauta e definir o que é prioridade inegociável esta semana para te dar previsibilidade."',
           points: 10,
-          feedback: 'Excelente! Demonstrou empatia e segurança psicológica imediatas, valores fundamentais para o perfil Estável em momentos de estresse.',
-          discTrait: 'S (Acolhimento e Segurança)'
+          feedback: 'Excelente! O Estável precisa de segurança, clareza no processo e previsibilidade. Focar em blindar a sprint é a melhor resposta relacional.',
+          discTrait: 'S (Segurança e Processos)'
         },
         {
-          text: '"Entendi. No modelo MSP da Clear IT, a volatilidade e a agilidade são constantes. Precisamos nos adaptar rapidamente."',
+          text: '"Mas o mercado de tecnologia na Clear IT é ágil, precisamos nos adaptar rápido às mudanças de arquitetura!"',
+          points: 4,
+          feedback: 'Inadequado. Desconsidera a dor emocional e a necessidade de estabilidade da colaboradora, gerando ansiedade.',
+          discTrait: 'D (Cobrança Insensível)'
+        },
+        {
+          text: '"Se você organizar melhor sua agenda e fizer horas extras conseguirá terminar tudo, mesmo mudando o escopo."',
           points: 3,
-          feedback: 'Inadequado. Muito frio e focado no jargão corporativo. Aumenta a ansiedade e a sensação de insegurança do Estável.',
-          discTrait: 'D (Pressão por Resultados)'
-        },
-        {
-          text: '"Quais tarefas especificamente estão mudando? Liste todas para eu analisar tecnicamente no sistema."',
-          points: 5,
-          feedback: 'Muito técnico e transacional. Ignora o estado emocional e o cansaço que ela expressou no início.',
-          discTrait: 'C (Foco no Processo)'
+          feedback: 'Ruim. Estimula o burnout e não resolve o problema do desalinhamento gerencial.',
+          discTrait: 'C (Rigidez Operacional)'
         }
       ]
     },
     desenvolvimento: {
-      colabSpeech: '"Tenho receio de sinalizar que não vou conseguir entregar nas dailies e parecer incompetente, então acabo trabalhando até mais tarde em silêncio."',
+      colabSpeech: '"Eu fico perdida quando o Product Manager traz requisitos novos sem atualizar a documentação. Dá vontade de parar de programar."',
       options: [
         {
-          text: '"Sinalizar impedimento é sinal de transparência e colaboração. Vamos definir que revisaremos suas tarefas juntos de forma privada nas segundas."',
+          text: '"Compreendo. Vou alinhar com o PM que nenhuma alteração entra no Kanban sem especificação de API atualizada no Confluence."',
           points: 10,
-          feedback: 'Perfeito! Remove o medo do julgamento público e estabelece um processo de apoio previsível e privado, gerando alta segurança.',
-          discTrait: 'S (Apoio Estruturado)'
+          feedback: 'Excelente! Mostrou atitude de líder facilitador, protegendo os processos e estabelecendo uma governança clara para a tranquilidade de Mariana.',
+          discTrait: 'S (Proteção de Equipe)'
         },
         {
-          text: '"Você não deveria fazer horas extras sem me avisar, isso desalinha as métricas da nossa sprint."',
-          points: 3,
-          feedback: 'Péssimo. Pune a colaboradora por tentar resolver o problema e foca apenas em métricas gerenciais em vez do bem-estar dela.',
-          discTrait: 'C (Foco em Regras)'
+          text: '"Você precisa ser mais resiliente e ir falar diretamente com o PM para resolver isso no bate-papo."',
+          points: 4,
+          feedback: 'Fraco. Empurra a responsabilidade política para uma desenvolvedora com perfil de comunicação estável/passiva, gerando desconforto.',
+          discTrait: 'I (Delegação Relacional)'
         },
         {
-          text: '"Tente sinalizar nas reuniões gerais, garanto que a equipe é tranquila e ninguém vai te julgar."',
-          points: 6,
-          feedback: 'Bem intencionado, mas joga a responsabilidade de volta para Mariana sem criar um mecanismo prático de proteção ou mentoria.',
-          discTrait: 'I (Otimismo Passivo)'
+          text: '"Não se preocupe com documentação. Apenas continue codificando como puder e depois ajustamos os bugs."',
+          points: 5,
+          feedback: 'Razoável, mas estimula o retrabalho e a falta de capricho técnico.',
+          discTrait: 'C (Desenho Técnico)'
         }
       ]
     },
     fechamento: {
-      colabSpeech: '"Gostaria apenas de ter mais clareza sobre o que é prioritário e um fluxo de trabalho previsível."',
+      colabSpeech: '"Agradeço muito o apoio. Com isso, qual será o nosso combinado de PDI real?"',
       options: [
         {
-          text: '"Combinado no PDI: Definiremos o foco de entregas na segunda, faremos check-in na quarta e blindo você de novas demandas no meio da sprint."',
+          text: '"Sua meta será focar em estruturar o novo design system e faremos check-ins quinzenais calmos nas quintas-feiras para validar o progresso."',
           points: 10,
-          feedback: 'Excelente! Definiu um plano de ação estruturado com alta previsibilidade e proteção contra volatilidade, ideal para restabelecer a confiança de um Estável.',
-          discTrait: 'S (Planejamento e Previsibilidade)'
+          feedback: 'Excelente! Definiu um escopo estável de longo prazo e check-ins fixos previsíveis que transmitem alta segurança comportamental.',
+          discTrait: 'S (Previsibilidade e Acolhimento)'
         },
         {
-          text: '"Eu vou tentar avisar você quando o cliente pedir novas alterações no escopo do portal."',
-          points: 5,
-          feedback: 'Razoável, mas vago e sem compromisso estruturado de blindagem ou acompanhamento sistemático.',
-          discTrait: 'I (Boa Vontade Sem Ação)'
-        },
-        {
-          text: '"Acho que sua meta de PDI deve ser um treinamento de resiliência e gestão do estresse."',
+          text: '"A meta é você duplicar a velocidade de entrega para compensar os atrasos anteriores."',
           points: 3,
-          feedback: 'Ruim. Transfere toda a responsabilidade da disfunção organizacional de priorização para o nível pessoal de resiliência da colaboradora.',
-          discTrait: 'D (Individualização da Culpa)'
-        }
-      ]
-    }
-  },
-  'colab-03': {
-    collaboratorId: 'colab-03',
-    name: 'Jorge Oliveira (L4)',
-    disc: 'ANALITICO',
-    role: 'DevOps Principal',
-    introText: 'Jorge identificou falhas técnicas de infraestrutura e quer discuti-las de maneira puramente lógica e baseada em dados.',
-    abertura: {
-      colabSpeech: '"Preparei este relatório de logs. Detectei que 18% dos alarmes do SOC da Clear IT são falsos positivos gerados por scripts obsoletos que geram retrabalho operacional."',
-      options: [
-        {
-          text: '"Obrigado pela precisão dos dados, Jorge. Esse levantamento lógico é fundamental. Vamos analisar esses 18% e a causa raiz juntos."',
-          points: 10,
-          feedback: 'Excelente! Demonstra respeito imediato ao trabalho analítico e embasado do colaborador, alinhando-se à comunicação lógica do Analítico.',
-          discTrait: 'C (Foco em Dados e Qualidade)'
+          feedback: 'Inadequado. Assusta a profissional que acabou de reportar estafa mental.',
+          discTrait: 'D (Pressão Desmedida)'
         },
         {
-          text: '"Obrigado pelo relatório, Jorge. Mas me conta, como você está se sentindo em relação às suas conexões pessoais com o time remoto?"',
-          points: 3,
-          feedback: 'Inadequado. Desvia de forma abrupta de uma dor técnica real para perguntas emocionais que o perfil Analítico costuma achar invasivas de início.',
-          discTrait: 'S (Foco Relacional)'
-        },
-        {
-          text: '"Excelente. Vou salvar na nossa pasta compartilhada e, assim que sobrar tempo entre os projetos, damos uma olhada."',
+          text: '"Vamos ver como as coisas fluem na próxima sprint e depois decidimos o que combinar."',
           points: 5,
-          feedback: 'Razoável, mas desmotivador. Diminui a urgência de uma falha que o colaborador estudou e estruturou metodicamente.',
-          discTrait: 'D (Minimização da Dor Técnica)'
-        }
-      ]
-    },
-    desenvolvimento: {
-      colabSpeech: '"Para solucionar isso definitivamente, preciso de três sprints de refactoring nos scripts de monitoramento, sem participar de reuniões de status diárias desnecessárias."',
-      options: [
-        {
-          text: '"Entendo a necessidade técnica do refactoring. Vamos planejar as sprints de infraestrutura e eu blindo você das reuniões de alinhamento redundantes."',
-          points: 10,
-          feedback: 'Excelente! Compreendeu a necessidade de foco ininterrupto do Analítico e propôs uma blindagem prática que maximiza o rendimento dele.',
-          discTrait: 'C (Eficiência e Estrutura)'
-        },
-        {
-          text: '"Não podemos abrir essa exceção. Você precisa participar de todas as reuniões do time como regra geral do modelo de squads da Clear IT."',
-          points: 3,
-          feedback: 'Péssimo. Inflexível. Ignora o argumento lógico de produtividade e prioriza processos burocráticos sobre a solução do problema.',
-          discTrait: 'D (Rigidez Burocrática)'
-        },
-        {
-          text: '"Podemos tentar fazer o refactoring nas suas horas vagas, sem alterar seu envolvimento nas demandas dos projetos atuais."',
-          points: 4,
-          feedback: 'Inadequado. Sobrecarrega o colaborador e ignora o fato de que a correção dos scripts estabilizaria a própria operação do SOC.',
-          discTrait: 'D (Falta de Priorização)'
-        }
-      ]
-    },
-    fechamento: {
-      colabSpeech: '"Com esse refactoring, a estimativa baseada nos logs anteriores é reduzir os falsos alertas para menos de 2%, otimizando o SLA do time."',
-      options: [
-        {
-          text: '"Perfeito. Registraremos no PDI a meta de liderar esse refactoring técnico e medir a redução de 18% para 2% dos alarmes no dashboard corporativo."',
-          points: 10,
-          feedback: 'Excelente! Definiu metas claras, métricas objetivas de acompanhamento de PDI e valorizou a qualidade técnica demonstrada.',
-          discTrait: 'C (Metas Mensuráveis e Lógicas)'
-        },
-        {
-          text: '"Ótimo. Vamos combinar de falar sobre a redução dos alertas em algum momento no futuro, após o refactoring terminar."',
-          points: 5,
-          feedback: 'Razoável, mas carece de estrutura de PDI formal ou periodicidade lógica, o que desagrada o perfil Analítico.',
-          discTrait: 'S (Vagueza Operacional)'
-        },
-        {
-          text: '"Acho muito bom, mas sua maior meta no PDI deveria ser interagir mais socialmente com os outros desenvolvedores do SOC nas reuniões."',
-          points: 4,
-          feedback: 'Desfocado. Ignora a grande contribuição técnica do refactoring para focar em um aspect de relacionamento que não é a prioridade do momento.',
-          discTrait: 'I (Foco em Sociabilidade)'
-        }
-      ]
-    }
-  },
-  'colab-04': {
-    collaboratorId: 'colab-04',
-    name: 'Fernanda Lima (L1)',
-    disc: 'INFLUENTE',
-    role: 'Dev Front-end Júnior',
-    introText: 'Fernanda é júnior, entusiasmada e criativa, mas está se sentindo isolada trabalhando de forma remota.',
-    abertura: {
-      colabSpeech: '"Eu tenho várias ideias de layouts modernos e dinâmicos para o nosso portal interno da Clear IT! Mas o time de backend é muito fechado e sinto que não dão espaço para minhas propostas."',
-      options: [
-        {
-          text: '"Fernanda, adorei sua energia e entusiasmo! Suas ideias de melhorias visuais são super bem-vindas. Vamos ver como integrá-las no fluxo."',
-          points: 10,
-          feedback: 'Excelente! Validou o entusiasmo e a necessidade de reconhecimento social do Influente, dando voz ativa e feedback positivo imediato.',
-          discTrait: 'I (Reconhecimento e Estímulo)'
-        },
-        {
-          text: '"Fernanda, no momento nosso foco é resolver bugs críticos de segurança. Layouts e visual não são nossa prioridade."',
-          points: 3,
-          feedback: 'Péssimo. Frustra e desmotiva a colaboradora júnior de forma abrupta, cortando seu entusiasmo natural do perfil Influente.',
-          discTrait: 'D (Foco Rígido na Entrega)'
-        },
-        {
-          text: '"Você precisa focar em aprender as linguagens de desenvolvimento e regras de backend básicas antes de propor redesenhos estruturais."',
-          points: 4,
-          feedback: 'Desmotivador. Transmite a mensagem de que, por ser júnior, suas opiniões e criatividade não têm valor para a equipe no momento.',
-          discTrait: 'C (Burocracia de Nível)'
-        }
-      ]
-    },
-    desenvolvimento: {
-      colabSpeech: '"Às vezes me sinto isolada trabalhando de casa. Tenho medo de falar nos canais gerais do Slack e parecer incompetente por ser júnior."',
-      options: [
-        {
-          text: '"Não se sinta assim, suas dúvidas e pontos de vista agregam muito! O que acha de criarmos uma sessão quinzenal leve de demonstração visual para o time?"',
-          points: 10,
-          feedback: 'Excelente! Propôs uma solução que integra sociabilidade, visibilidade positiva e acolhimento técnico, neutralizando o isolamento do Influente.',
-          discTrait: 'I (Sociabilidade e Visibilidade)'
-        },
-        {
-          text: '"Trabalhar de casa exige autodisciplina e maturidade emocional para lidar com o silêncio corporativo."',
-          points: 3,
-          feedback: 'Inadequado. Frio e professoral. Desconsidera a necessidade humana de conexão social que os perfis Influentes precisam para produzir bem.',
-          discTrait: 'C (Foco Normativo)'
-        },
-        {
-          text: '"É normal se sentir assim no início. Tente postar suas dúvidas mesmo com receio, as pessoas acabam respondendo."',
-          points: 5,
-          feedback: 'Razoável, mas transfere o peso da iniciativa apenas para a colaboradora júnior, sem criar um ambiente facilitado de interação.',
-          discTrait: 'S (Confronto Passivo)'
-        }
-      ]
-    },
-    fechamento: {
-      colabSpeech: '"Eu ficaria muito feliz em poder apresentar algo visual e receber feedback do time sobre novas ideias!"',
-      options: [
-        {
-          text: '"Combinado no PDI: Vamos incluir uma meta de condução técnica onde você apresentará as melhorias de UI quinzenalmente. Eu apoiarei você no preparo."',
-          points: 10,
-          feedback: 'Excelente! Converteu a necessidade de validação e exposição positiva em uma meta estruturada de PDI com mentoria próxima do líder.',
-          discTrait: 'I (Liderança Colaborativa e Protagonismo)'
-        },
-        {
-          text: '"Certo, vamos deixar isso anotado e no próximo trimestre vemos se o time tem espaço na agenda para te ouvir."',
-          points: 4,
-          feedback: 'Frustrante. Empurra a ação de engajamento para um futuro distante, matando o entusiasmo imediato da colaboradora.',
-          discTrait: 'S (Procrastinação Relacional)'
-        },
-        {
-          text: '"A sua meta de PDI principal será terminar os cursos técnicos de React que estão pendentes na plataforma de treinamento corporativo."',
-          points: 5,
-          feedback: 'Muito formal e transacional. Embora o estudo técnico seja importante, ignora totalmente a necessidade de entrosamento e validação discutidos na reunião.',
-          discTrait: 'C (Foco Exclusivo em Cursos)'
+          feedback: 'Vago demais para o perfil de Mariana, que necessita de metas explícitas.',
+          discTrait: 'I (Improviso Relacional)'
         }
       ]
     }
@@ -372,39 +228,91 @@ export default function DashboardPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [leaderProfile, setLeaderProfile] = useState<LeaderProfile | null>(null);
-  const [activeSection, setActiveSection] = useState<SectionId>('onboarding');
+  const [activeSection, setActiveSection] = useState<SectionId>('about');
   const [copied, setCopied] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
+  
+  // Real Database States
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [oneOnOnes, setOneOnOnes] = useState<OneOnOne[]>([]);
+  const [conflicts, setConflicts] = useState<ConflictEscalation[]>([]);
+  const [profiles, setProfiles] = useState<LeaderProfile[]>([]);
+  const [loadingDb, setLoadingDb] = useState(true);
 
-  // States for Email Simulation & Interactive Simulator
-  const [simulatedEmails, setSimulatedEmails] = useState<SimulatedEmail[]>([]);
-  const [showEmailSuccess, setShowEmailSuccess] = useState(false);
-  const [lastSentEmail, setLastSentEmail] = useState<SimulatedEmail | null>(null);
-  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  // States for Live Stepper (1:1 Flow)
+  const [meetingStep, setMeetingStep] = useState(1);
+  const [selectedColabId, setSelectedColabId] = useState('');
+  const [collaboratorLevel, setCollaboratorLevel] = useState('L2');
+  const [selectedAtaTemplate, setSelectedAtaTemplate] = useState('rotineira');
+  const [meetingType, setMeetingType] = useState('Quinzenal Rotineira');
+  const [impedimentContext, setImpedimentContext] = useState('Alinhamento de tarefas ordinárias e checagem de clima.');
+  
+  const [generatedScript, setGeneratedScript] = useState('');
+  const [loadingScript, setLoadingScript] = useState(false);
+  
+  // Visual Kanban & Sliders states
+  const [kanbanTasks, setKanbanTasks] = useState<Array<{ id: string; title: string; status: 'todo' | 'in_progress' | 'done' }>>([]);
+  const [deliveryAdjustment, setDeliveryAdjustment] = useState<{ proposedDeadline: string; scopeChange: string; rationale: string } | null>(null);
+  const [scopeSlider, setScopeSlider] = useState(50);
+  const [deadlineSlider, setDeadlineSlider] = useState(50);
+  
+  // Timer live assist states
+  const [liveTalkTime, setLiveTalkTime] = useState(0); // em segundos
+  const [leaderTalkPercentage, setLeaderTalkPercentage] = useState(30); // Regra 70/30
+  const [liveQuestionsLog, setLiveQuestionsLog] = useState<string[]>([]);
+  const [chatMessage, setChatMessage] = useState('');
+  const [liveSuggestions, setLiveSuggestions] = useState<string[]>([]);
+  const [loadingLiveChat, setLoadingLiveChat] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // States for 1:1 Meeting Transcription & Evaluation
+  // Notes & Transcriptions for Step 4
+  const [rawLeaderNotes, setRawLeaderNotes] = useState('');
+  const [rawCollaboratorNotes, setRawCollaboratorNotes] = useState('');
   const [transcriptionText, setTranscriptionText] = useState('');
   const [lgpdConsent, setLgpdConsent] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  
+  // Results step 5
   const [evaluationResult, setEvaluationResult] = useState<{
     score: number;
     feedback: string;
     topics: string[];
-    conflictWarning: string | null;
-    protocol: string | null;
+    consistencyResult?: ConsistencyCheck;
+    hasConflict?: boolean;
+    finalSummary?: string;
   } | null>(null);
+  
+  const [leaderApproved, setLeaderApproved] = useState(false);
+  const [collaboratorApproved, setCollaboratorApproved] = useState(false);
+  const [isSimulationToggle, setIsSimulationToggle] = useState(false); // Switch to sign-off as collaborator
+  const [savedMeetingId, setSavedMeetingId] = useState<string | null>(null); // Real-time feedback meeting ID
 
-  // Simulator interactive states
+  // Email simulation states
+  const [simulatedEmails, setSimulatedEmails] = useState<SimulatedEmail[]>([]);
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+
+  // Simulator DISC interactive states
   const [simPhase, setSimPhase] = useState<SimPhase>('intro');
   const [simColabId, setSimColabId] = useState('colab-02');
   const [simScore, setSimScore] = useState(0);
   const [simAnswersHistory, setSimAnswersHistory] = useState<Array<{ phase: string, question: string, answer: string, points: number, feedback: string, discTrait: string }>>([]);
   const [simIaFeedback, setSimIaFeedback] = useState('');
-  const [simFeedbackConsolidated, setSimFeedbackConsolidated] = useState('');
 
-  // General app initialization
+  // RH Register Form states
+  const [newLeaderName, setNewLeaderName] = useState('');
+  const [newLeaderEmail, setNewLeaderEmail] = useState('');
+  const [newLeaderPassword, setNewLeaderPassword] = useState('lider123');
+  const [newLeaderProfile, setNewLeaderProfile] = useState<LeaderProfileType>('TECNICO');
+  
+  const [newColabName, setNewColabName] = useState('');
+  const [newColabDisc, setNewColabDisc] = useState<Collaborator['disc']>('DOMINANTE');
+  const [newColabLevel, setNewColabLevel] = useState('L1');
+  const [newColabRole, setNewColabRole] = useState('');
+  const [newColabLeaderId, setNewColabLeaderId] = useState('');
+
+  // General App & Database Initialization
   useEffect(() => {
     storage.initialize();
     const user = storage.getCurrentUser();
@@ -414,68 +322,181 @@ export default function DashboardPage() {
     }
     setCurrentUser(user);
 
-    const profile = storage.getLeaderProfile();
-    setLeaderProfile(profile);
+    // Initial Database Fetch
+    fetchDatabaseData(user);
 
     // Load simulated emails log
     const rawEmails = localStorage.getItem('synchr_emails');
     if (rawEmails) {
       setSimulatedEmails(JSON.parse(rawEmails));
     }
-
-    // If profile is PENDENTE or null and user is LEADER, force onboarding
-    if (user.role === 'LEADER' && (!profile || profile.profile === 'PENDENTE')) {
-      setActiveSection('onboarding');
-    } else if (user.role === 'RH') {
-      setActiveSection('rh');
-    } else {
-      setActiveSection('copiloto');
-    }
   }, [router]);
 
+  const fetchDatabaseData = async (user: UserSession) => {
+    setLoadingDb(true);
+    try {
+      // 1. Seed base data if profiles are empty (Auto-seeding)
+      const { data: dbProfiles, error: profileErr } = await supabase.from('profiles').select('*');
+      
+      if (!dbProfiles || dbProfiles.length === 0) {
+        console.log('Seeding profiles table...');
+        await supabase.from('profiles').insert(
+          MOCK_USERS.map(u => ({
+            email: u.email,
+            name: u.name,
+            role: u.role,
+            profile_type: u.profile,
+            level_from: 'Coordenador',
+            level_to: 'Gerente'
+          }))
+        );
+      }
+
+      // Check collaborators
+      const { data: dbColabs } = await supabase.from('collaborators').select('*');
+      const seededColabs = dbColabs || [];
+      setCollaborators(seededColabs);
+      if (seededColabs.length > 0 && !selectedColabId) {
+        setSelectedColabId(seededColabs[0].id);
+      }
+
+      // Fetch Profiles list
+      const { data: refreshedProfiles } = await supabase.from('profiles').select('*');
+      if (refreshedProfiles) {
+        setProfiles(refreshedProfiles.map(p => ({
+          id: p.id,
+          email: p.email,
+          name: p.name,
+          profile: p.profile_type as LeaderProfileType,
+          levelFrom: p.level_from || 'Coordenador',
+          levelTo: p.level_to || 'Gerente'
+        })));
+
+        // Set leader profile for current user
+        const matchedProfile = refreshedProfiles.find(p => p.email.toLowerCase() === user.email.toLowerCase());
+        if (matchedProfile) {
+          const lProfile: LeaderProfile = {
+            id: matchedProfile.id,
+            email: matchedProfile.email,
+            name: matchedProfile.name,
+            profile: matchedProfile.profile_type as LeaderProfileType,
+            levelFrom: matchedProfile.level_from || 'Coordenador',
+            levelTo: matchedProfile.level_to || 'Gerente'
+          };
+          setLeaderProfile(lProfile);
+          storage.setLeaderProfile(lProfile);
+          
+          if (user.role === 'LEADER' && matchedProfile.profile_type === 'PENDENTE') {
+            setActiveSection('onboarding');
+          } else if (user.role === 'RH') {
+            setActiveSection('rh');
+          } else {
+            setActiveSection('copiloto');
+          }
+        }
+      }
+
+      // Fetch One-on-Ones
+      const { data: dbOneOnOnes } = await supabase
+        .from('one_on_ones')
+        .select('*')
+        .order('date', { ascending: false });
+      
+      if (dbOneOnOnes) {
+        setOneOnOnes(dbOneOnOnes.map(o => ({
+          id: o.id,
+          collaboratorId: o.collaborator_id,
+          collaboratorName: seededColabs.find(c => c.id === o.collaborator_id)?.name || 'Colaborador',
+          date: o.date,
+          type: o.type,
+          context: o.context || '',
+          scriptText: o.script_text || '',
+          rawLeaderNotes: o.raw_leader_notes || '',
+          rawCollaboratorNotes: o.raw_collaborator_notes || '',
+          transcription: o.transcription || '',
+          finalSummary: o.final_summary || '',
+          leaderApproved: o.leader_approved,
+          collaboratorApproved: o.collaborator_approved,
+          consistencyResult: o.consistency_result,
+          ataTemplateId: o.ata_template_id
+        })));
+      }
+
+      // Fetch Conflicts
+      const { data: dbConflicts } = await supabase
+        .from('conflicts')
+        .select('*')
+        .order('date', { ascending: false });
+      
+      if (dbConflicts) {
+        setConflicts(dbConflicts.map(c => ({
+          id: c.id,
+          protocol: c.protocol,
+          collaboratorId: c.collaborator_id,
+          collaboratorName: seededColabs.find(col => col.id === c.collaborator_id)?.name || 'Colaborador',
+          description: c.description,
+          date: c.date,
+          status: c.status as any,
+          notes: c.notes || '',
+          hasHistory: c.has_history,
+          isBypass: c.is_bypass
+        })));
+      }
+
+    } catch (err) {
+      console.error('Erro ao buscar dados do Supabase:', err);
+    } finally {
+      setLoadingDb(false);
+    }
+  };
+
   const handleLogout = () => {
+    supabase.auth.signOut();
     storage.setCurrentUser(null);
+    storage.setLeaderProfile(null);
     router.push('/login');
   };
 
-  const handleSyncDatabase = async () => {
-    setSyncing(true);
-    setSyncLogs(['[Início] Conectando ao endpoint corporativo da ClearIT...', '[Status] Lendo atas do localStorage...']);
-    
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    
-    const oneOnOnesList = storage.getOneOnOnes();
-    setSyncLogs(prev => [
-      ...prev,
-      `[Status] Detectadas ${oneOnOnesList.length} atas de reunião para processamento.`,
-      `[Segurança] Higienizando PII e criptografando notas...`
-    ]);
-
-    await new Promise((resolve) => setTimeout(resolve, 850));
-
-    try {
-      const res = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meetings: oneOnOnesList })
+  const handleSwitchSection = (sectionId: SectionId) => {
+    if (sectionId !== 'onboarding' && sectionId !== 'about' && (!leaderProfile || leaderProfile.profile === 'PENDENTE') && currentUser?.role === 'LEADER') {
+      Swal.fire({
+        title: 'Complete o Onboarding',
+        text: 'Você precisa concluir a autoavaliação de liderança antes de acessar as outras telas.',
+        icon: 'warning',
+        background: '#0f172a',
+        color: '#cbd5e1',
+        confirmButtonColor: '#4f46e5'
       });
-      const data = await res.json();
-      if (data.success) {
-        setSyncLogs(prev => [
-          ...prev,
-          `[Protocolo] Recebido do DB: ${data.protocol}`,
-          `[Status] Total sincronizado: ${data.totalSynced} registros.`,
-          `[Sucesso] Concluído em ${new Date(data.timestamp).toLocaleTimeString()}. Sincronizado!`
-        ]);
-      } else {
-        setSyncLogs(prev => [...prev, `[Erro] Falha reportada pelo banco: ${data.error}`]);
-      }
-    } catch (e) {
-      console.error(e);
-      setSyncLogs(prev => [...prev, `[Erro] Falha crítica de conexão na rota /api/sync.`]);
-    } finally {
-      setSyncing(false);
+      return;
     }
+    setActiveSection(sectionId);
+    setSidebarOpen(false);
+  };
+
+  // Timer Controls
+  const startTimer = () => {
+    if (timerRef.current) return;
+    timerRef.current = setInterval(() => {
+      setLiveTalkTime(prev => prev + 1);
+    }, 1000);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const resetTimer = () => {
+    stopTimer();
+    setLiveTalkTime(0);
+  };
+
+  const formatTime = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${mins.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   // ==========================================
@@ -548,747 +569,715 @@ export default function DashboardPage() {
       options: [
         { key: 'A', text: "Sugiro ler a documentação interna da Clear IT e focar em entregar as sprints sem gerar atritos." },
         { key: 'B', text: "Agendo sessões estruturadas usando o modelo SBI para exercitarmos inteligência emocional." },
-        { key: 'C', text: "Crio um plano de ação rápido de 3 passos para ele praticar soft skills no próximo alinhamento." }
-      ]
-    },
-    {
-      id: 8,
-      question: "8. Como você lida com a pressão por prazos apertados vinda da diretoria?",
-      options: [
-        { key: 'A', text: "Repasso os dados brutos e peço foco total na codificação para entregar o escopo." },
-        { key: 'B', text: "Reúno a equipe para entender a sobrecarga e busco blindá-los protegendo o clima interno." },
-        { key: 'C', text: "Ajusto as prioridades de forma enxuta e gerencio a alocação de tempo de forma agressiva." }
-      ]
-    },
-    {
-      id: 9,
-      question: "9. Qual a sua visão sobre a participação do time em eventos e treinamentos externos?",
-      options: [
-        { key: 'A', text: "Válido, desde que o tema seja 100% técnico e não impacte o andamento das entregas das sprints." },
-        { key: 'B', text: "Essencial para o desenvolvimento integral do profissional, incluindo palestras de soft skills e cultura." },
-        { key: 'C', text: "Importante, desde que traga retorno rápido (KPIs de eficiência) para o time a curto prazo." }
-      ]
-    },
-    {
-      id: 10,
-      question: "10. O que para você caracteriza uma reunião de 1:1 bem-sucedida?",
-      options: [
-        { key: 'A', text: "Todos os impedimentos técnicos resolvidos e as tarefas desbloqueadas no board de desenvolvimento." },
-        { key: 'B', text: "O liderado se sentindo seguro, ouvido de verdade e com clareza emocional sobre seu papel." },
-        { key: 'C', text: "Um plano de ação claro e resumido acordado para os próximos 15 dias." }
+        { key: 'C', text: "Conecto-o com um mentor experiente e indico um curso rápido de liderança situacional." }
       ]
     }
   ];
 
-  const handleSelectAnswer = (qId: number, optionKey: 'A' | 'B' | 'C') => {
-    const updated = { ...answers, [qId]: optionKey };
-    setAnswers(updated);
-
-    // Auto calculate diagnosed profile if all 10 questions answered
-    if (Object.keys(updated).length === 10) {
-      const counts = { A: 0, B: 0, C: 0 };
-      Object.values(updated).forEach(k => counts[k]++);
-      
-      let winner: LeaderProfileType = 'TRANSICAO';
-      if (counts.A > counts.B && counts.A > counts.C) winner = 'TECNICO';
-      else if (counts.C > counts.A && counts.C > counts.B) winner = 'ENGAJADO';
-      
-      setDiagnosedProfile(winner);
-    }
+  const handleSelectOption = (qId: number, optionKey: 'A' | 'B' | 'C') => {
+    setAnswers(prev => ({ ...prev, [qId]: optionKey }));
   };
 
-  const handleSaveOnboarding = () => {
-    if (!diagnosedProfile || !currentUser) return;
-
-    const newProfile: LeaderProfile = {
-      id: 1,
-      email: currentUser.email,
-      name: currentUser.name,
-      profile: diagnosedProfile,
-      levelFrom,
-      levelTo
-    };
-
-    storage.setLeaderProfile(newProfile);
-    setLeaderProfile(newProfile);
-    
-    // Update local state for current user session
-    const updatedUser = { ...currentUser, profile: diagnosedProfile };
-    setCurrentUser(updatedUser);
-    localStorage.setItem('synchr_user', JSON.stringify(updatedUser));
-
-    Swal.fire({
-      title: 'Onboarding Concluído!',
-      html: `Perfil Identificado: <strong>${
-        diagnosedProfile === 'TECNICO' ? '🤖 Líder Técnico' : diagnosedProfile === 'TRANSICAO' ? '🌱 Líder em Transição' : '🔥 Líder Engajado'
-      }</strong><br/>Plataforma desbloqueada com sucesso.`,
-      icon: 'success',
-      background: '#0f172a',
-      color: '#cbd5e1',
-      confirmButtonColor: '#4f46e5',
-      customClass: {
-        popup: 'border border-slate-800 rounded-2xl font-sans'
-      }
-    });
-
-    setActiveSection('copiloto');
-  };
-
-  const handleResetOnboarding = () => {
-    if (confirm("Deseja realmente resetar o perfil de liderança? As seções serão bloqueadas novamente.")) {
-      storage.setLeaderProfile(null);
-      setLeaderProfile(null);
-      setAnswers({});
-      setDiagnosedProfile(null);
-      
-      if (currentUser) {
-        const updatedUser = { ...currentUser, profile: 'PENDENTE' as LeaderProfileType };
-        setCurrentUser(updatedUser);
-        localStorage.setItem('synchr_user', JSON.stringify(updatedUser));
-      }
-      
-      setActiveSection('onboarding');
-    }
-  };
-
-  const getProfileMetadata = (p: LeaderProfileType | null) => {
-    switch(p) {
-      case 'TECNICO':
-        return {
-          title: "Líder Técnico 🤖",
-          desc: "Gestores focados em entregas e metas tangíveis. Apresentam baixa tolerância a jargões corporativos de RH. O copiloto gerará pautas diretas, curtas e baseadas em remoção de impedimentos.",
-          color: "border-indigo-500/50 text-indigo-400 bg-indigo-950/20",
-          glow: "indigo"
-        };
-      case 'ENGAJADO':
-        return {
-          title: "Líder Engajado 🔥",
-          desc: "Líderes focados no desenvolvimento individual do time (PDI e carreira), mas que sofrem com extrema falta de tempo na agenda. O copiloto priorizará resumos rápidos e ações práticas em < 3 minutos.",
-          color: "border-amber-500/50 text-amber-400 bg-amber-950/20",
-          glow: "amber"
-        };
-      case 'TRANSICAO':
-      default:
-        return {
-          title: "Líder em Transição 🌱",
-          desc: "Profissionais promovidos recentemente de cargos técnicos para gestão. Sentem falta de bagagem emocional para conversas sensíveis e feedbacks. O copiloto fornecerá roteiros passo a passo detalhados com metodologia SBI.",
-          color: "border-emerald-500/50 text-emerald-400 bg-emerald-950/20",
-          glow: "emerald"
-        };
-    }
-  };
-
-  const handleSwitchSection = (sectionId: SectionId) => {
-    const isLocked = currentUser?.role === 'LEADER' && (!leaderProfile || leaderProfile.profile === 'PENDENTE');
-    if (sectionId !== 'onboarding' && isLocked) {
+  const handleCalculateProfile = () => {
+    if (Object.keys(answers).length < 7) {
       setShowWarning(true);
-      setTimeout(() => setShowWarning(false), 3500);
       return;
     }
-    setActiveSection(sectionId);
-    setSidebarOpen(false);
-  };
+    setShowWarning(false);
 
-  // ==========================================
-  // SECTION 2: COPILOTO 1:1 STATE & LOGIC
-  // ==========================================
-  const [selectedColabId, setSelectedColabId] = useState('colab-02');
-  const [meetingType, setMeetingType] = useState('Quinzenal Rotineira');
-  const [impedimentContext, setImpedimentContext] = useState('Atrasos frequentes nas últimas duas sprints e pouca comunicação.');
-  const [generatedScript, setGeneratedScript] = useState('');
+    let countA = 0;
+    let countB = 0;
+    let countC = 0;
 
-  const activeColab = MOCK_COLLABORATORS.find(c => c.id === selectedColabId) || MOCK_COLLABORATORS[0];
+    Object.values(answers).forEach(val => {
+      if (val === 'A') countA++;
+      else if (val === 'B') countB++;
+      else countC++;
+    });
 
-  const handleGenerateScript = () => {
-    const profile = leaderProfile?.profile || 'TRANSICAO';
-    const disc = activeColab.disc;
-    
-    let script = `### Roteiro de 1:1 Inteligente\n\n`;
-    script += `**Liderado:** ${activeColab.name} | Perfil DISC: ${disc}\n`;
-    script += `**Foco:** ${meetingType}\n`;
-    script += `**Perfil do Líder:** ${profile}\n\n`;
-    script += `---\n\n`;
-
-    if (profile === 'TECNICO') {
-      script += `#### 1. Sincronismo Técnico & Impedimentos (3 min)\n`;
-      script += `- "Carlos, direto ao ponto: o que está travando sua entrega nas últimas sprints?"\n`;
-      script += `- "Como posso ajudar a desbloquear os pull requests pendentes?"\n\n`;
-      script += `#### 2. Metas & Prazos (5 min)\n`;
-      script += `- "Temos a entrega da feature X dia 15. Qual o seu plano de ação real para finalizar?"\n`;
-      if (disc === 'DOMINANTE') {
-        script += `- *Dica DISC Domínio:* Vá direto aos resultados, evite enrolar ou fazer rodeios.\n`;
-      }
-    } else if (profile === 'ENGAJADO') {
-      script += `#### 1. Check-in Rápido de Energia (2 min)\n`;
-      script += `- "De 1 a 5, como está seu nível de energia e motivação essa semana?"\n\n`;
-      script += `#### 2. Ponto Focal & Carreira (3 min)\n`;
-      script += `- "Olhando para os seus objetivos de PDI na Clear IT, qual das suas tarefas atuais mais contribui para o seu crescimento?"\n`;
-      script += `- "Que competência você quer focar em desenvolver na próxima sprint?"\n`;
-    } else {
-      // TRANSICAO - SBI Method
-      script += `#### 1. Abertura Empática (4 min)\n`;
-      script += `- "Gostaria de saber como você tem se sentido no dia a dia com a carga de trabalho. Como estão as coisas?"\n\n`;
-      script += `#### 2. Feedback Estruturado - Metodologia SBI (8 min)\n`;
-      script += `- **Situação:** "Durante a última sprint do projeto..."\n`;
-      script += `- **Comportamento:** "Percebi que houveram atrasos na entrega dos cards de autenticação e pouca sinalização de impedimentos nas dailies."\n`;
-      script += `- **Impacto:** "Isso acabou gerando um gargalo para a equipe de QA e atrasou o deploy homologado."\n`;
-      script += `- "Faz sentido para você? Qual a sua perspectiva sobre esse cenário?"\n\n`;
-      script += `#### 3. Plano de Ação Conjunto (5 min)\n`;
-      script += `- "Vamos alinhar uma meta simples de comunicação diária em caso de bloqueio. O que você acha?"\n`;
+    let profile: LeaderProfileType = 'TRANSICAO';
+    if (countA > countB && countA > countC) {
+      profile = 'TECNICO';
+    } else if (countC > countA && countC > countB) {
+      profile = 'ENGAJADO';
     }
 
-    setGeneratedScript(script);
-    // Reset any previous evaluation on generating a new script
-    setEvaluationResult(null);
-    setTranscriptionText('');
+    setDiagnosedProfile(profile);
   };
 
-  const handleCopyScript = () => {
-    navigator.clipboard.writeText(generatedScript);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleSaveProfile = async () => {
+    if (!currentUser || !diagnosedProfile) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          profile_type: diagnosedProfile,
+          level_from: levelFrom,
+          level_to: levelTo
+        })
+        .eq('email', currentUser.email)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const lProfile: LeaderProfile = {
+          id: data.id,
+          email: data.email,
+          name: data.name,
+          profile: data.profile_type as LeaderProfileType,
+          levelFrom: data.level_from || 'Coordenador',
+          levelTo: data.level_to || 'Gerente'
+        };
+        setLeaderProfile(lProfile);
+        storage.setLeaderProfile(lProfile);
+
+        // Update local session
+        const updatedUser = { ...currentUser, profile: diagnosedProfile };
+        setCurrentUser(updatedUser);
+        storage.setCurrentUser(updatedUser);
+
+        Swal.fire({
+          title: 'Perfil Configurado!',
+          text: `Seu perfil foi definido como Líder ${diagnosedProfile.toLowerCase()} no Supabase.`,
+          icon: 'success',
+          background: '#0f172a',
+          color: '#cbd5e1',
+          confirmButtonColor: '#4f46e5'
+        });
+
+        // Switch to main copiloto view
+        setActiveSection('copiloto');
+        setMeetingStep(1);
+      }
+    } catch (err: any) {
+      Swal.fire('Erro', 'Falha ao salvar perfil no Supabase: ' + err.message, 'error');
+    }
   };
 
   // ==========================================
-  // SECTION 3: COPILOTO TRANSCRIPTION & EVALUATION LOGIC
+  // SECTION 2: COPILOTO (STEPPER 1:1 FLOW)
   // ==========================================
-  const handleEvaluateAndArchive = async () => {
-    if (!transcriptionText.trim()) {
+  const activeColab = collaborators.find(c => c.id === selectedColabId) || collaborators[0] || MOCK_COLLABORATORS[0];
+
+  const handleGenerateScript = async () => {
+    if (!selectedColabId) {
+      Swal.fire('Atenção', 'Selecione um liderado antes.', 'warning');
+      return;
+    }
+
+    setLoadingScript(true);
+    try {
+      const res = await fetch('/api/generate-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leaderProfile: leaderProfile?.profile || 'TRANSICAO',
+          collaboratorName: activeColab.name,
+          collaboratorDisc: activeColab.disc,
+          collaboratorLevel: collaboratorLevel,
+          meetingType: meetingType,
+          context: impedimentContext,
+          ataTemplateId: selectedAtaTemplate
+        })
+      });
+
+      if (!res.ok) throw new Error('Falha HTTP ao chamar API.');
+
+      const data = await res.json();
+      
+      setGeneratedScript(data.script);
+      setKanbanTasks(data.kanbanTasks || []);
+      setDeliveryAdjustment(data.deliveryAdjustment || null);
+      
+      // Auto adjust visual sliders based on suggestions
+      if (data.deliveryAdjustment) {
+        const hasScopeMod = data.deliveryAdjustment.scopeChange.toLowerCase().includes('reduz') || data.deliveryAdjustment.scopeChange.toLowerCase().includes('diminu');
+        setScopeSlider(hasScopeMod ? 35 : 70);
+        const hasDeadlineMod = data.deliveryAdjustment.proposedDeadline.toLowerCase().includes('prorr') || data.deliveryAdjustment.proposedDeadline.toLowerCase().includes('adi') || data.deliveryAdjustment.proposedDeadline.toLowerCase().includes('amanhã');
+        setDeadlineSlider(hasDeadlineMod ? 85 : 50);
+      }
+
+      setMeetingStep(2); // Move to Step 2
+    } catch (e: any) {
+      console.error(e);
+      Swal.fire('Erro na IA', 'Não foi possível gerar o roteiro com o Gemini API: ' + e.message, 'error');
+    } finally {
+      setLoadingScript(false);
+    }
+  };
+
+  // Live Chat suggestions during meeting
+  const handleSendLiveMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatMessage.trim()) return;
+
+    const messageToSend = chatMessage;
+    setLiveQuestionsLog(prev => [...prev, `Colaborador: "${messageToSend}"`]);
+    setChatMessage('');
+    setLoadingLiveChat(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: messageToSend,
+          profile: leaderProfile?.profile || 'TRANSICAO'
+        })
+      });
+
+      if (!res.ok) throw new Error('Erro na resposta da API.');
+      const data = await res.json();
+      
+      setLiveSuggestions(data.text.split('\n').filter((l: string) => l.trim().length > 0));
+    } catch (err: any) {
+      console.error(err);
+      setLiveSuggestions(['Erro ao carregar orientações da IA. Verifique sua chave API.']);
+    } finally {
+      setLoadingLiveChat(false);
+    }
+  };
+
+  // Evaluate & Consistency Audit (Step 4 -> Step 5)
+  const handleEvaluateMeeting = async () => {
+    if (!lgpdConsent) {
       Swal.fire({
-        title: 'Campo Obrigatório',
-        text: 'Por favor, registre a transcrição ou anotações da fala do colaborador.',
+        title: 'Consentimento de Privacidade',
+        text: 'É obrigatório obter o opt-in do colaborador para gravação e análise em conformidade com a LGPD.',
         icon: 'warning',
         background: '#0f172a',
         color: '#cbd5e1',
-        confirmButtonColor: '#4f46e5',
-        customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
-      });
-      return;
-    }
-
-    if (!lgpdConsent) {
-      Swal.fire({
-        title: 'Consentimento Necessário',
-        text: 'Sob as diretrizes da LGPD (RN01), o consentimento do colaborador é obrigatório para registrar a ata.',
-        icon: 'error',
-        background: '#0f172a',
-        color: '#cbd5e1',
-        confirmButtonColor: '#4f46e5',
-        customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
+        confirmButtonColor: '#4f46e5'
       });
       return;
     }
 
     setIsEvaluating(true);
 
-    // Simulate IA Processing Delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    // LGPD Sanitization (regex mask)
+    let sanitizedTranscription = transcriptionText;
+    let sanitizedLeaderNotes = rawLeaderNotes;
+    let sanitizedColabNotes = rawCollaboratorNotes;
 
-    const cleanText = transcriptionText.toLowerCase();
-    const leaderProf = leaderProfile?.profile || 'TRANSICAO';
-    const colabDisc = activeColab.disc;
+    const cpfRegex = /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g;
+    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+    const blacklistHealth = /\b(atestado|médico|doença|psiquiatra|hospital|laudo|cid|c.i.d)\b/gi;
 
-    // 1. Conflict detection (Passo 7 / F-05)
-    // Keywords: ["sobrecarregado", "atrito", "desgaste", "briga", "injusto"]
-    const conflictKeywords = ["sobrecarregado", "sobrecarregada", "atrito", "desgaste", "briga", "injusto", "injusta", "cansado", "cansada"];
-    const hasConflict = conflictKeywords.some(keyword => cleanText.includes(keyword));
+    const sanitize = (t: string) => {
+      return t
+        .replace(cpfRegex, '[CPF MASCARADO]')
+        .replace(emailRegex, '[EMAIL MASCARADO]')
+        .replace(blacklistHealth, '[DADO DE SAÚDE SEGREGADO - COMPLIANCE]');
+    };
 
-    let protocol: string | null = null;
-    let conflictWarning: string | null = null;
+    sanitizedTranscription = sanitize(sanitizedTranscription);
+    sanitizedLeaderNotes = sanitize(sanitizedLeaderNotes);
+    sanitizedColabNotes = sanitize(sanitizedColabNotes);
 
-    if (hasConflict) {
-      protocol = `SHR-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-      conflictWarning = `Risco de Conflito Detectado: A transcrição contém termos que indicam alto desgaste ou sobrecarga. Um chamado de mediação com o RH foi aberto automaticamente com o protocolo ${protocol}.`;
+    try {
+      const res = await fetch('/api/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawLeaderNotes: sanitizedLeaderNotes,
+          rawCollaboratorNotes: sanitizedColabNotes,
+          transcription: sanitizedTranscription,
+          collaboratorName: activeColab.name,
+          collaboratorDisc: activeColab.disc
+        })
+      });
 
-      // Save conflict to RH database (mocked storage)
-      const conflict: ConflictEscalation = {
-        id: `conf-${Date.now()}`,
-        protocol,
-        collaboratorId: activeColab.id,
-        collaboratorName: activeColab.name,
-        description: `[Auto-Detecção via Transcrição] O colaborador relatou descontentamento/atrito na 1:1. Resumo do relato: "${transcriptionText}"`,
+      if (!res.ok) throw new Error('Falha ao processar avaliação.');
+      const data = await res.json();
+
+      setEvaluationResult(data);
+      setMeetingStep(5); // Go to Step 5 (Validação)
+    } catch (e: any) {
+      console.error(e);
+      Swal.fire('Erro na Auditoria', 'Não foi possível processar a ata final com a API: ' + e.message, 'error');
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  // Final Archiving to Supabase
+  // Real-time link generator for Led Employee Feedback Form (F-05 Link)
+  const handleGenerateFeedbackLink = async () => {
+    try {
+      if (savedMeetingId) {
+        const link = `${window.location.origin}/feedback?id=${savedMeetingId}`;
+        navigator.clipboard.writeText(link);
+        Swal.fire({
+          title: 'Link Copiado!',
+          text: 'O link de feedback do liderado foi copiado para sua área de transferência.',
+          icon: 'success',
+          background: '#0f172a',
+          color: '#cbd5e1',
+          confirmButtonColor: '#4f46e5'
+        });
+        return;
+      }
+
+      // 1. Save 1:1 to Supabase in draft mode (collaborator approved is false)
+      const { data: oneOnOneData, error: saveErr } = await supabase.from('one_on_ones').insert({
+        collaborator_id: activeColab.id,
         date: new Date().toISOString().split('T')[0],
-        status: 'PENDING',
-        hasHistory: true,
-        isBypass: false
-      };
-      storage.saveConflict(conflict);
+        type: meetingType,
+        context: impedimentContext,
+        script_text: generatedScript,
+        raw_leader_notes: rawLeaderNotes,
+        raw_collaborator_notes: rawCollaboratorNotes,
+        transcription: transcriptionText,
+        final_summary: evaluationResult?.finalSummary || '',
+        leader_approved: true,
+        collaborator_approved: false,
+        consistency_result: evaluationResult?.consistencyResult,
+        ata_template_id: selectedAtaTemplate
+      }).select().single();
+
+      if (saveErr) throw saveErr;
+
+      setSavedMeetingId(oneOnOneData.id);
+      
+      const link = `${window.location.origin}/feedback?id=${oneOnOneData.id}`;
+      navigator.clipboard.writeText(link);
+      Swal.fire({
+        title: 'Link Gerado e Copiado!',
+        text: 'Ata salva no banco de dados. O link de feedback foi copiado para envio: ' + link,
+        icon: 'success',
+        background: '#0f172a',
+        color: '#cbd5e1',
+        confirmButtonColor: '#4f46e5'
+      });
+    } catch (e: any) {
+      console.error(e);
+      Swal.fire('Erro ao Gerar Link', 'Não foi possível salvar o rascunho no banco: ' + e.message, 'error');
+    }
+  };
+
+  // Final Archiving to Supabase
+  const handleArchiveMeeting = async () => {
+    if (!leaderApproved || !collaboratorApproved) {
+      Swal.fire({
+        title: 'Assinaturas Pendentes',
+        text: 'Ambas as partes (Líder e Colaborador) devem aprovar e assinar a ata antes de arquivar no banco de dados.',
+        icon: 'info',
+        background: '#0f172a',
+        color: '#cbd5e1',
+        confirmButtonColor: '#4f46e5'
+      });
+      return;
     }
 
-    // 2. Mock AI Evaluation (Passo 6 / F-06)
-    // We generate a tailored feedback based on Leader Profile and Liderado DISC
-    let score = 85; // base score
-    let feedback = "";
-    let topics: string[] = [];
+    try {
+      const isDivergent = evaluationResult?.consistencyResult?.consistent === false;
+      const protocol = `SHR-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+      let oneOnOneData;
 
-    // Extract topics dynamically or mock them based on keywords
-    if (cleanText.includes("qa") || cleanText.includes("code review") || cleanText.includes("deploy")) {
-      topics.push("Homologação e Fluxo de QA / Deploy");
-    }
-    if (cleanText.includes("prioridade") || cleanText.includes("prioridades") || cleanText.includes("escopo") || cleanText.includes("tarefa")) {
-      topics.push("Estabilidade de Escopo e Priorização de Demandas");
-    }
-    if (cleanText.includes("alarmes") || cleanText.includes("soc") || cleanText.includes("infraestrutura") || cleanText.includes("logs")) {
-      topics.push("Qualidade Técnica e Otimização do SOC (Alarmes Falsos)");
-    }
-    if (cleanText.includes("layout") || cleanText.includes("ui") || cleanText.includes("front-end") || cleanText.includes("ideias")) {
-      topics.push("Melhoria de UI e Colaboração de Design");
-    }
-    if (cleanText.includes("isolado") || cleanText.includes("isolada") || cleanText.includes("home office") || cleanText.includes("remoto")) {
-      topics.push("Integração Social e Trabalho Remoto");
-    }
-    if (cleanText.includes("sobrecarregado") || cleanText.includes("sobrecarregada") || cleanText.includes("cansado") || cleanText.includes("cansada")) {
-      topics.push("Bem-estar Emocional e Carga de Trabalho");
-    }
-    if (topics.length === 0) {
-      topics.push("Alinhamento Geral de Rotina");
-    }
+      // 1. Save or Update 1:1 in Supabase
+      if (savedMeetingId) {
+        const { data, error: updateErr } = await supabase
+          .from('one_on_ones')
+          .update({
+            raw_collaborator_notes: rawCollaboratorNotes,
+            leader_approved: true,
+            collaborator_approved: true,
+            consistency_result: evaluationResult?.consistencyResult,
+            final_summary: evaluationResult?.finalSummary || ''
+          })
+          .eq('id', savedMeetingId)
+          .select()
+          .single();
 
-    // Adapt feedback to Leader Profile and Liderado DISC
-    if (colabDisc === 'DOMINANTE') {
-      if (leaderProf === 'TECNICO') {
-        score = 95;
-        feedback = "Excelente calibração! Como Líder Técnico lidando com um liderado Dominante (Carlos), você evitou discussões subjetivas e focou em métricas e autonomia. O Carlos valoriza a objetividade e a solução pragmática dos impedimentos de QA.";
-      } else if (leaderProf === 'ENGAJADO') {
-        score = 80;
-        feedback = "Bom alinhamento. Você buscou focar em metas rápidas, mas lembre-se de que o Dominante precisa sentir que tem autonomia e impacto direto nos resultados técnicos. Evite focar em dinâmicas de pessoas se houver bloqueios operacionais urgentes.";
+        if (updateErr) throw updateErr;
+        oneOnOneData = data;
       } else {
-        score = 70;
-        feedback = "Atenção: O liderado Dominante pode se sentir frustrado com abordagens sentimentais excessivas ou feedbacks longos (método SBI). Tente ser mais direto ao ponto nas próximas sessões, focando no plano de ação prático.";
+        const { data, error: saveErr } = await supabase.from('one_on_ones').insert({
+          collaborator_id: activeColab.id,
+          date: new Date().toISOString().split('T')[0],
+          type: meetingType,
+          context: impedimentContext,
+          script_text: generatedScript,
+          raw_leader_notes: rawLeaderNotes,
+          raw_collaborator_notes: rawCollaboratorNotes,
+          transcription: transcriptionText,
+          final_summary: evaluationResult?.finalSummary || '',
+          leader_approved: true,
+          collaborator_approved: true,
+          consistency_result: evaluationResult?.consistencyResult,
+          ata_template_id: selectedAtaTemplate
+        }).select().single();
+
+        if (saveErr) throw saveErr;
+        oneOnOneData = data;
       }
-    } else if (colabDisc === 'ESTAVEL') {
-      if (leaderProf === 'TRANSICAO') {
-        score = 98;
-        feedback = "Desempenho espetacular! O perfil Estável (Mariana) necessita de segurança psicológica, previsibilidade e apoio direto. Sua abordagem de transição com foco em acompanhamento próximo e empatia desarmou a insegurança dela sobre prazos.";
-      } else if (leaderProf === 'ENGAJADO') {
-        score = 85;
-        feedback = "Bom ritmo. O Estável responde bem ao foco de carreira, mas garanta que o plano de ação seja calmo e dê espaço para ela respirar. O cansaço relatado exige que você a blinde ativamente de mudanças no meio da sprint.";
-      } else {
-        score = 65;
-        feedback = "Alerta de Tom: Líderes Técnicos tendem a cobrar entregas de forma seca. O Estável (Mariana) interpreta isso como pressão fria, aumentando o silêncio dela sobre atrasos. Pratique empatia ativa e reserve tempo para ouvi-la.";
+
+      // 2. If it is divergent or has conflict, open a conflict in Supabase automatically (Feature 7 / 9)
+      if (isDivergent || evaluationResult?.hasConflict) {
+        await supabase.from('conflicts').insert({
+          protocol: protocol,
+          collaborator_id: activeColab.id,
+          description: `Conflito de Informações ou Divergência grave identificada na 1:1 de ${oneOnOneData.date}. Detalhes: ${evaluationResult?.consistencyResult?.details || 'Divergência de percepção.'}`,
+          date: new Date().toISOString().split('T')[0],
+          status: 'PENDING',
+          has_history: true,
+          is_bypass: false
+        });
       }
-    } else if (colabDisc === 'ANALITICO') {
-      if (leaderProf === 'TECNICO') {
-        score = 95;
-        feedback = "Alinhamento ideal! O Analítico (Jorge) valoriza discussões baseadas em logs, dados e arquitetura lógica. Como líder técnico, você reconheceu a necessidade de refactoring dele sem impor conversas sociais invasivas de início.";
-      } else if (leaderProf === 'TRANSICAO') {
-        score = 80;
-        feedback = "Apropriado. Usar a metodologia estruturada ajuda a guiar o feedback, mas evite rodeios emocionais. O Analítico responde melhor quando você concorda com o plano técnico de forma metódica e mensurável no PDI.";
-      } else {
-        score = 75;
-        feedback = "Ajuste necessário: O perfil Analítico é avesso a conversação vaga sobre sentimentos. Foque nas métricas de redução de alarmes falsos (SLA) para mantê-lo engajado. Evite pressionar por interações sociais forçadas.";
-      }
-    } else { // INFLUENTE (Fernanda)
-      if (leaderProf === 'ENGAJADO') {
-        score = 96;
-        feedback = "Excelente conexão! O Influente (Fernanda) precisa de visibilidade positiva, entusiasmo e espaço criativo. Ao apoiar suas ideias de UI e criar uma dinâmica de apresentação para a equipe, você maximizou a energia dela.";
-      } else if (leaderProf === 'TRANSICAO') {
-        score = 85;
-        feedback = "Bom acolhimento. Fernanda responde muito bem a orientações empáticas. Lembre-se apenas de ajudar a estruturar as ideias dela de forma concreta no PDI, para que o entusiasmo não se disperse em ideias soltas.";
-      } else {
-        score = 60;
-        feedback = "Risco de desengajamento: O Líder Técnico focado apenas em tarefas operacionais frias ('concluir curso React', 'ignorar UI por enquanto') frustra a necessidade de pertencimento e inovação do Influente.";
-      }
+
+      Swal.fire({
+        title: 'Ata Registrada e Validada!',
+        html: `A ata foi gravada com sucesso no Supabase.<br/>Status: <strong>VALIDADA (Dupla Assinatura)</strong>${
+          isDivergent ? `<br/><br/><span class="text-amber-400 font-bold">⚠️ Divergência detectada! Protocolo de conflito aberto no RH: ${protocol}</span>` : ''
+        }`,
+        icon: 'success',
+        background: '#0f172a',
+        color: '#cbd5e1',
+        confirmButtonColor: '#4f46e5'
+      });
+
+      // Reset meeting stepper
+      setMeetingStep(1);
+      setGeneratedScript('');
+      setRawLeaderNotes('');
+      setRawCollaboratorNotes('');
+      setTranscriptionText('');
+      setLgpdConsent(false);
+      setEvaluationResult(null);
+      setLeaderApproved(false);
+      setCollaboratorApproved(false);
+      setSavedMeetingId(null);
+      
+      // Refresh Supabase logs in dashboard
+      fetchDatabaseData(currentUser!);
+
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire('Erro ao Salvar', 'Não foi possível persistir a ata no Supabase: ' + err.message, 'error');
     }
-
-    const evaluationObj = {
-      score,
-      feedback,
-      topics,
-      conflictWarning,
-      protocol
-    };
-
-    setEvaluationResult(evaluationObj);
-
-    // Save the finalized meeting to storage (Passo 5)
-    storage.saveOneOnOne({
-      id: `1on1-${Date.now()}`,
-      collaboratorId: activeColab.id,
-      collaboratorName: activeColab.name,
-      date: new Date().toISOString().split('T')[0],
-      type: meetingType,
-      context: impedimentContext,
-      scriptText: generatedScript || 'Roteiro não gerado previamente.',
-      notes: `Avaliação: Pontuação de calibração: ${score}/100. Feedback: ${feedback}`,
-      transcription: transcriptionText,
-      evaluation: JSON.stringify(evaluationObj)
-    });
-
-    setIsEvaluating(false);
-
-    Swal.fire({
-      title: 'Reunião Avaliada e Arquivada!',
-      html: `A 1:1 com <strong>${activeColab.name}</strong> foi registrada no localStorage sob diretrizes da LGPD (dados de saúde/PII higienizados).${
-        hasConflict ? `<br/><br/><span class="text-amber-400 font-bold">⚠️ Conflito registrado: Protocolo ${protocol}</span>` : ''
-      }`,
-      icon: 'success',
-      background: '#0f172a',
-      color: '#cbd5e1',
-      confirmButtonColor: '#4f46e5',
-      customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
-    });
   };
 
   // ==========================================
-  // SECTION 4: ESCALAÇÃO DE CONFLITOS LOGIC (F-05)
+  // SECTION 3: RH PORTAL (CADASTROS & METRICAS)
   // ==========================================
-  const [escColabId, setEscColabId] = useState('colab-02');
-  const [escDesc, setEscDesc] = useState('');
-  const [isBypass, setIsBypass] = useState(false);
-  const [hasHistory, setHasHistory] = useState(true);
-
-  // Check 1on1 history in the last 45 days
-  useEffect(() => {
-    const history = storage.getOneOnOnes();
-    // Check if there is a 1on1 with this collaborator
-    const match = history.some(h => h.collaboratorId === escColabId);
-    setHasHistory(match);
-  }, [escColabId]);
-
-  const handleSubmitEscalation = (e: React.FormEvent) => {
+  const handleRHRegisterLeader = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newLeaderName.trim() || !newLeaderEmail.trim()) {
+      Swal.fire('Atenção', 'Preencha nome e e-mail corporativo.', 'warning');
+      return;
+    }
 
-    if (!escDesc.trim()) {
+    try {
+      // 1. Cadastrar no Auth do Supabase (com senha padrão)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newLeaderEmail,
+        password: newLeaderPassword,
+        options: {
+          data: {
+            name: newLeaderName,
+            role: 'LEADER',
+            profile: 'PENDENTE'
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // 2. Criar registro na tabela public.profiles
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: authData.user.id,
+          email: newLeaderEmail,
+          name: newLeaderName,
+          role: 'LEADER',
+          profile_type: 'PENDENTE',
+          level_from: 'Coordenador',
+          level_to: 'Gerente'
+        });
+
+        if (profileError) throw profileError;
+
+        Swal.fire({
+          title: 'Líder Cadastrado!',
+          text: `Gestor(a) ${newLeaderName} foi inserido no Supabase com sucesso.`,
+          icon: 'success',
+          background: '#0f172a',
+          color: '#cbd5e1'
+        });
+
+        setNewLeaderName('');
+        setNewLeaderEmail('');
+        fetchDatabaseData(currentUser!);
+      }
+    } catch (err: any) {
+      Swal.fire('Erro no Cadastro', err.message, 'error');
+    }
+  };
+
+  const handleRHRegisterCollaborator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newColabName.trim() || !newColabRole.trim()) {
+      Swal.fire('Atenção', 'Preencha todos os campos do colaborador.', 'warning');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('collaborators').insert({
+        name: newColabName,
+        disc: newColabDisc,
+        level: newColabLevel,
+        role: newColabRole,
+        leader_id: newColabLeaderId || null
+      });
+
+      if (error) throw error;
+
       Swal.fire({
-        title: 'Campo Obrigatório',
-        text: 'Por favor, descreva detalhadamente os fatos.',
+        title: 'Colaborador Cadastrado!',
+        text: `Colaborador(a) ${newColabName} foi cadastrado no Supabase com sucesso.`,
+        icon: 'success',
+        background: '#0f172a',
+        color: '#cbd5e1'
+      });
+
+      setNewColabName('');
+      setNewColabRole('');
+      fetchDatabaseData(currentUser!);
+    } catch (err: any) {
+      Swal.fire('Erro no Cadastro', err.message, 'error');
+    }
+  };
+
+  const handleResolveConflict = async (id: string, notes: string) => {
+    try {
+      const { error } = await supabase
+        .from('conflicts')
+        .update({ status: 'RESOLVED', notes: notes })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      Swal.fire('Sucesso', 'Conflito arquivado como Solucionado!', 'success');
+      fetchDatabaseData(currentUser!);
+    } catch (err: any) {
+      Swal.fire('Erro', err.message, 'error');
+    }
+  };
+
+  const handleDeleteCollaborator = async (id: string, name: string) => {
+    const confirm = await Swal.fire({
+      title: 'Excluir Liderado?',
+      text: `Tem certeza que deseja deletar o colaborador(a) ${name}? Esta ação não pode ser desfeita e removerá seus históricos de reuniões associadas.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sim, Deletar',
+      cancelButtonText: 'Cancelar',
+      background: '#0f172a',
+      color: '#cbd5e1',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#4f46e5'
+    });
+
+    if (confirm.isConfirmed) {
+      try {
+        const { error } = await supabase
+          .from('collaborators')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+
+        Swal.fire({
+          title: 'Excluído!',
+          text: 'O colaborador foi removido do Supabase com sucesso.',
+          icon: 'success',
+          background: '#0f172a',
+          color: '#cbd5e1',
+          confirmButtonColor: '#4f46e5'
+        });
+        fetchDatabaseData(currentUser!);
+      } catch (err: any) {
+        Swal.fire('Erro ao Excluir', err.message, 'error');
+      }
+    }
+  };
+
+  const handleDeleteLeader = async (id: string, name: string) => {
+    try {
+      // 1. Verificar integridade referencial no Supabase
+      const { data: colabs, error: checkErr } = await supabase
+        .from('collaborators')
+        .select('id')
+        .eq('leader_id', id);
+
+      if (checkErr) throw checkErr;
+
+      if (colabs && colabs.length > 0) {
+        Swal.fire({
+          title: 'Exclusão Bloqueada',
+          text: `O gestor(a) ${name} possui ${colabs.length} liderado(s) ativamente vinculado(s). Por favor, transfira a equipe para outro gestor antes de excluí-lo.`,
+          icon: 'error',
+          background: '#0f172a',
+          color: '#cbd5e1',
+          confirmButtonColor: '#4f46e5'
+        });
+        return;
+      }
+
+      const confirm = await Swal.fire({
+        title: 'Excluir Líder?',
+        text: `Tem certeza que deseja deletar o gestor(a) ${name}?`,
         icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sim, Deletar',
+        cancelButtonText: 'Cancelar',
         background: '#0f172a',
         color: '#cbd5e1',
-        confirmButtonColor: '#4f46e5',
-        customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#4f46e5'
       });
-      return;
-    }
 
-    // Business Rule check: RN03 (Rule of 45 days) or RN04 (Bypass)
-    if (!hasHistory && !isBypass) {
-      Swal.fire({
-        title: 'Bloqueio de Regra de Negócio (RN03)',
-        html: `Não foi detectado histórico de reuniões 1:1 com este colaborador nos últimos 45 dias.<br/><br/>Você precisa realizar pelo menos uma 1:1 de alinhamento antes de acionar o RH, ou selecionar o <strong>'Bypass de Assédio/Ética'</strong> em casos graves.`,
-        icon: 'error',
-        background: '#0f172a',
-        color: '#cbd5e1',
-        confirmButtonColor: '#4f46e5',
-        customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
-      });
-      return;
-    }
+      if (confirm.isConfirmed) {
+        const { error } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', id);
 
-    const protocolNum = `SHR-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    const colab = MOCK_COLLABORATORS.find(c => c.id === escColabId)!;
+        if (error) throw error;
 
-    const conflict: ConflictEscalation = {
-      id: `conf-${Date.now()}`,
-      protocol: protocolNum,
-      collaboratorId: colab.id,
-      collaboratorName: colab.name,
-      description: escDesc,
-      date: new Date().toISOString().split('T')[0],
-      status: 'PENDING',
-      hasHistory,
-      isBypass
-    };
-
-    storage.saveConflict(conflict);
-    Swal.fire({
-      title: 'Escalação Enviada!',
-      html: `Protocolo gerado: <strong>${protocolNum}</strong><br/><br/>O time de RH de TI (Priscila Bacelar) foi acionado e revisará o caso no painel analítico.`,
-      icon: 'success',
-      background: '#0f172a',
-      color: '#cbd5e1',
-      confirmButtonColor: '#4f46e5',
-      customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
-    });
-    setEscDesc('');
-    setIsBypass(false);
-  };
-
-  // ==========================================
-  // SECTION 5: PAINEL DO RH (ADMIN - F-06)
-  // ==========================================
-  const [conflicts, setConflicts] = useState<ConflictEscalation[]>([]);
-  const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
-  const [mediationNotes, setMediationNotes] = useState('');
-  const [exportPayload, setExportPayload] = useState('');
-
-  useEffect(() => {
-    if (activeSection === 'rh') {
-      setConflicts(storage.getConflicts());
-    }
-  }, [activeSection]);
-
-  const handleUpdateConflictStatus = (id: string, newStatus: ConflictEscalation['status']) => {
-    if (newStatus === 'UNRESOLVED' && (!mediationNotes || mediationNotes.trim().length < 15)) {
-      Swal.fire({
-        title: 'Justificativa Obrigatória',
-        text: 'Erro: Registre pelo menos 15 caracteres nas Notas de Resolução / Mediação explicando por que não foi possível resolver o conflito antes de encaminhar.',
-        icon: 'error',
-        background: '#0f172a',
-        color: '#cbd5e1',
-        confirmButtonColor: '#4f46e5',
-        customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
-      });
-      return;
-    }
-    storage.updateConflictStatus(id, newStatus, mediationNotes);
-    setConflicts(storage.getConflicts());
-    setSelectedConflictId(null);
-    setMediationNotes('');
-    Swal.fire({
-      title: 'Atualizado!',
-      text: 'Chamado atualizado com sucesso no banco mockado local!',
-      icon: 'success',
-      background: '#0f172a',
-      color: '#cbd5e1',
-      confirmButtonColor: '#4f46e5',
-      customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
-    });
-  };
-
-  const handleSelectConflict = (c: ConflictEscalation) => {
-    setSelectedConflictId(c.id);
-    setMediationNotes(c.notes || '');
-  };
-
-  // LGPD Export Pseudonymization & Encryption Simulator
-  const handleSimulateLgpdExport = () => {
-    const list = storage.getConflicts();
-    
-    // Simulate SHA-256 pseudonymization and AES-256 encryption string
-    const simulatedExport = list.map(c => {
-      // Pseudonymize collaborator name (generate a deterministic hash)
-      const pseudoNameHash = `SHA256_SALT_HASH_${c.collaboratorId}`;
-      return {
-        protocol: c.protocol,
-        date: c.date,
-        pseudoCollaborator: pseudoNameHash,
-        status: c.status,
-        encryptedDescription: `AES_256_GCM_ENCRYPTED_DATA[${Buffer.from(c.description).toString('base64').substring(0, 32)}...]`,
-        compliantWithLgpd: true
-      };
-    });
-
-    setExportPayload(JSON.stringify(simulatedExport, null, 2));
-  };
-
-  // FINE TUNING PROMPTS EDITOR STATE
-  const [mainPrompt, setMainPrompt] = useState('');
-  const [realTimePrompt, setRealTimePrompt] = useState('');
-
-  useEffect(() => {
-    if (activeSection === 'rh') {
-      const prompts = storage.getPrompts();
-      setMainPrompt(prompts.mainPrompt);
-      setRealTimePrompt(prompts.realTimePrompt);
-    }
-  }, [activeSection]);
-
-  const handleSavePrompts = () => {
-    storage.savePrompts({ mainPrompt, realTimePrompt });
-    Swal.fire({
-      title: 'Salvo!',
-      text: 'Prompts de Sistema atualizados com sucesso para todas as gerações de IA da plataforma!',
-      icon: 'success',
-      background: '#0f172a',
-      color: '#cbd5e1',
-      confirmButtonColor: '#4f46e5',
-      customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
-    });
-  };
-
-  const getColabQuestions = (colabId: string) => {
-    switch (colabId) {
-      case 'colab-01':
-        return [
-          {
-            text: 'Estou frustrado com os atrasos na aprovação do code review pelo time de QA, isso trava minhas entregas.',
-            label: '💬 "Frustrado com atrasos de QA..."'
-          },
-          {
-            text: 'Quero ter mais autonomia técnica para fazer deploys diretos sem passar por burocracias de outros times.',
-            label: '💬 "Quero autonomia para deploy..."'
-          },
-          {
-            text: 'Se eu não tiver uma perspectiva clara de promoção em curto prazo, terei que buscar outra oportunidade no mercado.',
-            label: '💬 "Dúvida sobre promoção rápida..."'
-          }
-        ];
-      case 'colab-03':
-        return [
-          {
-            text: 'Detectei que 18% dos alarmes do SOC são alarmes falsos causados por scripts legados, precisamos consertar isso urgente.',
-            label: '💬 "18% de alarmes falsos no SOC..."'
-          },
-          {
-            text: 'Preciso de três sprints focadas em refactoring sem interrupções de reuniões de status diárias para corrigir os scripts.',
-            label: '💬 "Preciso de sprints focadas..."'
-          },
-          {
-            text: 'Sinto que o time de DevOps não segue os padrões lógicos e documentados de segurança que estabelecemos.',
-            label: '💬 "Time ignora padrões de segurança..."'
-          }
-        ];
-      case 'colab-04':
-        return [
-          {
-            text: 'Gostaria de sugerir novas melhorias visuais de UI para o portal, mas sinto que o time técnico de backend não me dá abertura.',
-            label: '💬 "Time de backend bloqueia ideias UI..."'
-          },
-          {
-            text: 'Trabalhando 100% home office, às vezes me sinto isolada e com receio de postar minhas dúvidas no Slack e parecer tola.',
-            label: '💬 "Isolamento no home office..."'
-          },
-          {
-            text: 'Ainda tenho dificuldade em receber feedbacks diretos muito frios. Prefiro um alinhamento mais encorajador.',
-            label: '💬 "Dificuldade com feedback frio..."'
-          }
-        ];
-      case 'colab-02':
-      default:
-        return [
-          {
-            text: 'Estou me sentindo muito sobrecarregada com as constantes mudanças de prioridades nos cartões de front-end.',
-            label: '💬 "Sobrecarga com mudanças de escopo..."'
-          },
-          {
-            text: 'Tenho receio de sinalizar atrasos nas reuniões gerais e parecer incompetente, então trabalho calada até tarde.',
-            label: '💬 "Medo de sinalizar atrasos..."'
-          },
-          {
-            text: 'Gostaria de maior previsibilidade nas prioridades e um fluxo mais estável para evitar ansiedade.',
-            label: '💬 "Preciso de previsibilidade..."'
-          }
-        ];
+        Swal.fire({
+          title: 'Excluído!',
+          text: 'O gestor foi removido do Supabase com sucesso.',
+          icon: 'success',
+          background: '#0f172a',
+          color: '#cbd5e1',
+          confirmButtonColor: '#4f46e5'
+        });
+        fetchDatabaseData(currentUser!);
+      }
+    } catch (err: any) {
+      Swal.fire('Erro ao Excluir', err.message, 'error');
     }
   };
 
   // ==========================================
-  // SECTION 6: EMAIL SIMULATOR & INTERACTIVE SIMULATOR FUNCTIONS
+  // SECTION 4: INTERACTIVE DISC SIMULATOR (MOCK)
   // ==========================================
-  const handleSimulateSendEmail = () => {
-    if (!generatedScript || !currentUser) return;
-
-    const emailId = `email-${Date.now()}`;
-    const emailTo = activeColab.name.toLowerCase().replace(/\s+/g, '.').split('(')[0].trim() + '@clearit.com.br';
-    const newEmail: SimulatedEmail = {
-      id: emailId,
-      to: emailTo,
-      from: currentUser.email,
-      subject: `Ata e Roteiro de Reunião 1:1 - ${activeColab.name}`,
-      body: generatedScript,
-      date: new Date().toISOString()
-    };
-
-    const currentEmails = JSON.parse(localStorage.getItem('synchr_emails') || '[]');
-    currentEmails.unshift(newEmail);
-    localStorage.setItem('synchr_emails', JSON.stringify(currentEmails));
-    setSimulatedEmails(currentEmails);
-
-    setLastSentEmail(newEmail);
-    setShowEmailSuccess(true);
-  };
-
-  const handleStartSimulation = (colabId: string) => {
-    setSimColabId(colabId);
+  const handleStartSimulation = () => {
     setSimPhase('abertura');
     setSimScore(0);
     setSimAnswersHistory([]);
     setSimIaFeedback('');
-    setSimFeedbackConsolidated('');
   };
 
-  const handleAnswerSimulation = (option: SimAnswerOption) => {
+  const handleChooseSimOption = (option: SimAnswerOption) => {
     const scenario = SIMULATOR_SCENARIOS[simColabId];
-    const currentSpeech = scenario[simPhase as 'abertura' | 'desenvolvimento' | 'fechamento'].colabSpeech;
-    
-    const newScore = simScore + option.points;
-    setSimScore(newScore);
+    const newHistory = [
+      ...simAnswersHistory,
+      {
+        phase: simPhase,
+        question: scenario[simPhase as 'abertura' | 'desenvolvimento' | 'fechamento'].colabSpeech,
+        answer: option.text,
+        points: option.points,
+        feedback: option.feedback,
+        discTrait: option.discTrait
+      }
+    ];
 
-    const historyItem = {
-      phase: simPhase,
-      question: currentSpeech,
-      answer: option.text,
-      points: option.points,
-      feedback: option.feedback,
-      discTrait: option.discTrait
-    };
+    setSimAnswersHistory(newHistory);
+    setSimScore(prev => prev + option.points);
 
-    setSimAnswersHistory(prev => [...prev, historyItem]);
-    setSimIaFeedback(option.feedback);
-  };
-
-  const handleNextSimulationStep = () => {
-    setSimIaFeedback('');
     if (simPhase === 'abertura') {
       setSimPhase('desenvolvimento');
     } else if (simPhase === 'desenvolvimento') {
       setSimPhase('fechamento');
-    } else if (simPhase === 'fechamento') {
+    } else {
       setSimPhase('feedback');
+      // Calculate average & final comments
+      const totalPoints = simScore + option.points;
+      const percentage = Math.round((totalPoints / 30) * 100);
+      let review = "";
+      if (percentage >= 85) {
+        review = `Excelente calibração relacional! Você se provou apto a liderar colaboradores do tipo ${scenario.disc} na Clear IT, minimizando ruídos e focando em planos de PDI tangíveis.`;
+      } else if (percentage >= 60) {
+        review = `Bom aproveitamento. Você ouviu as dores do liderado, mas algumas respostas focaram excessivamente em jargões formais em vez de sanar as necessidades específicas do perfil DISC.`;
+      } else {
+        review = `Atenção: Seu comportamento tendeu a ser desalinhado com as necessidades do liderado. Revise as diretrizes do guia DISC de liderança corporativa da Clear IT.`;
+      }
+      setSimIaFeedback(review);
     }
   };
 
-  const handleSaveSimulationToHistory = () => {
+  const handleSaveSimToDb = async () => {
     const scenario = SIMULATOR_SCENARIOS[simColabId];
     const percentage = Math.round((simScore / 30) * 100);
-
     const summaryScript = `### Resumo da Reunião Simulada (DISC)
 **Colaborador:** ${scenario.name}
 **Perfil DISC:** ${scenario.disc}
 **Cargo:** ${scenario.role}
-**Pontuação de Calibração do Líder:** ${simScore} / 30 pontos (${percentage}%)
+**Aproveitamento do Gestor:** ${percentage}% (${simScore}/30 pts)
 
 ---
+` + simAnswersHistory.map(h => `* **Fase:** ${h.phase.toUpperCase()}
+  * **Fala:** ${h.question}
+  * **Sua Resposta:** ${h.answer}
+  * **Conselho:** ${h.feedback}`).join('\n');
 
-` + simAnswersHistory.map(h => `#### Fase: ${h.phase.toUpperCase()}
-- **Fala do Colaborador:** ${h.question}
-- **Resposta do Líder:** ${h.answer}
-- **Feedback da IA:** ${h.feedback}
-- **Métrica DISC avaliada:** ${h.discTrait} (Mapeado: +${h.points} pontos)
-`).join('\n');
+    try {
+      const { error } = await supabase.from('one_on_ones').insert({
+        collaborator_id: collaborators[0]?.id || activeColab.id,
+        date: new Date().toISOString().split('T')[0],
+        type: 'Simulada (DISC)',
+        context: scenario.introText,
+        script_text: summaryScript,
+        raw_leader_notes: `Aproveitamento na simulação: ${percentage}%`,
+        raw_collaborator_notes: 'Feedback da simulação de IA gravado.',
+        final_summary: `O líder realizou uma simulação de 1:1 com a persona de teste ${scenario.name} com um aproveitamento final de ${percentage}%.`,
+        leader_approved: true,
+        collaborator_approved: true
+      });
 
-    storage.saveOneOnOne({
-      id: `sim-1on1-${Date.now()}`,
-      collaboratorId: simColabId,
-      collaboratorName: scenario.name,
-      date: new Date().toISOString().split('T')[0],
-      type: 'Simulada Interativa (DISC)',
-      context: scenario.introText,
-      scriptText: summaryScript,
-      notes: `Simulação DISC concluída com aproveitamento de ${percentage}%.`
-    });
+      if (error) throw error;
 
-    Swal.fire({
-      title: 'Salvo com Sucesso!',
-      text: 'Simulação de 1:1 e plano de ação salvos no seu Histórico de Reuniões com sucesso!',
-      icon: 'success',
-      background: '#0f172a',
-      color: '#cbd5e1',
-      confirmButtonColor: '#4f46e5',
-      customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
-    });
-    setSimPhase('intro');
+      Swal.fire({
+        title: 'Simulação Arquivada!',
+        text: 'A simulação foi gravada no Supabase como registro de evolução contínua da liderança.',
+        icon: 'success',
+        background: '#0f172a',
+        color: '#cbd5e1'
+      });
+
+      setSimPhase('intro');
+      fetchDatabaseData(currentUser!);
+    } catch (err: any) {
+      Swal.fire('Erro ao salvar', err.message, 'error');
+    }
   };
 
   return (
-    <div className="flex min-h-screen relative z-10 font-sans overflow-x-hidden">
+    <div className="min-h-screen text-slate-100 flex relative overflow-hidden bg-[#0b0f19] font-sans">
       
+      {/* Background Orbs */}
+      <div className="absolute w-[500px] h-[500px] rounded-full bg-indigo-500/5 -top-40 -left-40 orb pointer-events-none" />
+      <div className="absolute w-[600px] h-[600px] rounded-full bg-cyan-500/3 -bottom-60 -right-20 orb pointer-events-none" />
+
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden animate-fade-in"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar Panel */}
-      <aside className={`fixed inset-y-0 left-0 z-40 md:relative md:flex w-[280px] shrink-0 border-r border-slate-800/80 bg-slate-950/80 backdrop-blur-md p-6 flex flex-col gap-6 transition-transform duration-300 md:translate-x-0 ${
+      <aside className={`fixed md:relative inset-y-0 left-0 w-64 border-r border-slate-900 bg-slate-950/90 backdrop-blur-xl p-5 flex flex-col gap-6 z-50 transition-transform duration-300 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
         
-        {/* Logo and Brand */}
+        {/* Brand */}
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center font-bold text-slate-100 text-lg font-title">
             S
@@ -1299,11 +1288,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Current Active Account Box */}
+        {/* Current Account */}
         {currentUser && (
           <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/30 space-y-2">
             <div className="flex justify-between items-start">
-              <div className="text-xs text-slate-500 font-mono uppercase tracking-wider">Conta Ativa</div>
+              <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Conta Ativa</div>
               <button 
                 onClick={handleLogout}
                 className="text-slate-500 hover:text-red-400 transition-all"
@@ -1314,44 +1303,54 @@ export default function DashboardPage() {
             </div>
             <div>
               <h4 className="text-xs font-bold text-slate-200 truncate">{currentUser.name}</h4>
-              <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
+              <p className="text-[11px] text-slate-500 truncate">{currentUser.email}</p>
             </div>
-            
-            <div className="pt-2 border-t border-slate-900 flex justify-between items-center text-xs">
+            <div className="pt-1.5 border-t border-slate-900/60 flex justify-between items-center text-[11px]">
               <span className="text-slate-400">Tipo:</span>
-              <span className="bg-slate-800 text-indigo-300 px-1.5 py-0.5 rounded font-semibold uppercase">
+              <span className="bg-indigo-950/50 text-indigo-300 border border-indigo-900/40 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">
                 {currentUser.role}
               </span>
             </div>
           </div>
         )}
 
-        {/* Mapped Leader Profile Badge */}
+        {/* Leader Profile Diagnosed */}
         {currentUser?.role === 'LEADER' && (
           <div className="p-3.5 rounded-xl border border-slate-800/80 bg-slate-900/40 space-y-1">
-            <div className="text-xs text-slate-500 font-mono uppercase tracking-wider">Perfil Diagnóstico</div>
+            <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Perfil Liderança</div>
             {leaderProfile && leaderProfile.profile !== 'PENDENTE' ? (
               <>
                 <div className="text-xs font-bold text-emerald-400 flex items-center gap-1">
                   <span>{leaderProfile.profile === 'TECNICO' ? '🤖' : leaderProfile.profile === 'TRANSICAO' ? '🌱' : '🔥'}</span>
-                  <span>Líder {leaderProfile.profile.toLowerCase()}</span>
+                  <span>Líder {leaderProfile.profile}</span>
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-[11px] text-slate-500">
                   {leaderProfile.levelFrom} → {leaderProfile.levelTo}
                 </div>
               </>
             ) : (
               <div className="text-xs font-bold text-red-400 flex items-center gap-1.5 animate-pulse">
                 <span>⚠️</span>
-                <span>Não Configurado</span>
+                <span>Pendente de Diagnóstico</span>
               </div>
             )}
           </div>
         )}
 
-        {/* Menu Navigation */}
+        {/* Sidebar Nav */}
         <nav className="flex-1 flex flex-col gap-1.5 pt-2">
-          
+          <button
+            onClick={() => handleSwitchSection('about')}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
+              activeSection === 'about'
+                ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
+                : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <HelpCircle className="w-4 h-4 shrink-0" />
+            <span>Sobre o SyncHR</span>
+          </button>
+
           {currentUser?.role === 'LEADER' && (
             <button
               onClick={() => handleSwitchSection('onboarding')}
@@ -1362,7 +1361,7 @@ export default function DashboardPage() {
               }`}
             >
               <UserCheck className="w-4 h-4 shrink-0" />
-              <span>Onboarding / Teste</span>
+              <span>Onboarding Liderança</span>
             </button>
           )}
 
@@ -1370,50 +1369,53 @@ export default function DashboardPage() {
             <>
               <button
                 onClick={() => handleSwitchSection('copiloto')}
-                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
                   activeSection === 'copiloto'
                     ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
                     : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-                } ${(!leaderProfile || leaderProfile.profile === 'PENDENTE') ? 'opacity-40 cursor-not-allowed' : ''}`}
+                }`}
               >
-                <div className="flex items-center gap-3">
-                  <Sparkles className="w-4 h-4 shrink-0" />
-                  <span>Copiloto de 1:1</span>
-                </div>
-                {(!leaderProfile || leaderProfile.profile === 'PENDENTE') && <Lock className="w-3.5 h-3.5 text-slate-500" />}
-              </button>
-
-              <button
-                onClick={() => handleSwitchSection('escalation')}
-                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
-                  activeSection === 'escalation'
-                    ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
-                    : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-                } ${(!leaderProfile || leaderProfile.profile === 'PENDENTE') ? 'opacity-40 cursor-not-allowed' : ''}`}
-              >
-                <div className="flex items-center gap-3">
-                  <ShieldAlert className="w-4 h-4 shrink-0" />
-                  <span>Escalação de Conflito</span>
-                </div>
-                {(!leaderProfile || leaderProfile.profile === 'PENDENTE') && <Lock className="w-3.5 h-3.5 text-slate-500" />}
+                <Sparkles className="w-4 h-4 shrink-0" />
+                <span>Copiloto de 1:1 (Stepper)</span>
               </button>
 
               <button
                 onClick={() => handleSwitchSection('simulador')}
-                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
                   activeSection === 'simulador'
                     ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
                     : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
-                } ${(!leaderProfile || leaderProfile.profile === 'PENDENTE') ? 'opacity-40 cursor-not-allowed' : ''}`}
+                }`}
               >
-                <div className="flex items-center gap-3">
-                  <MessageSquare className="w-4 h-4 shrink-0" />
-                  <span>Simulador de 1:1</span>
-                </div>
-                {(!leaderProfile || leaderProfile.profile === 'PENDENTE') && <Lock className="w-3.5 h-3.5 text-slate-500" />}
+                <Play className="w-4 h-4 shrink-0" />
+                <span>Simulador de DISC (Quiz)</span>
+              </button>
+
+              <button
+                onClick={() => handleSwitchSection('escalation')}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
+                  activeSection === 'escalation'
+                    ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
+                    : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>Escalação de Conflitos</span>
               </button>
             </>
           )}
+
+          <button
+            onClick={() => handleSwitchSection('historico')}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${
+              activeSection === 'historico'
+                ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
+                : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4 shrink-0" />
+            <span>Histórico de Reuniões</span>
+          </button>
 
           {currentUser?.role === 'RH' && (
             <button
@@ -1425,1106 +1427,1603 @@ export default function DashboardPage() {
               }`}
             >
               <Database className="w-4 h-4 shrink-0" />
-              <span>Painel do RH (Admin)</span>
+              <span>Painel Geral do RH</span>
             </button>
           )}
-
-
         </nav>
 
-        <div className="mt-auto text-xs text-slate-600 font-mono text-center pt-4 border-t border-slate-900">
-          SyncHR v0.1.0 · Clear IT
+        <div className="pt-4 border-t border-slate-900 text-center">
+          <p className="text-[10px] text-slate-600 font-mono">SyncHR Corporate v1.2</p>
         </div>
       </aside>
 
-      {/* Main Container Content */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         
-        {/* Mobile Top Bar */}
-        <header className="flex md:hidden items-center justify-between p-4 border-b border-slate-805 bg-slate-950/80 backdrop-blur-md sticky top-0 z-20">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center font-bold text-slate-100 text-sm font-title">
-              S
+        {/* Navbar */}
+        <header className="h-16 border-b border-slate-900 bg-slate-950/40 backdrop-blur-md px-6 flex justify-between items-center z-30 sticky top-0">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setSidebarOpen(true)}
+              className="p-1 text-slate-400 hover:text-slate-200 md:hidden"
+            >
+              <ClipboardList className="w-6 h-6" />
+            </button>
+            <div className="text-sm font-bold text-slate-200 font-title uppercase tracking-wider">
+              {activeSection === 'about' && 'Sobre o SyncHR'}
+              {activeSection === 'onboarding' && 'Diagnóstico de Liderança'}
+              {activeSection === 'copiloto' && 'Copiloto de Reuniões de 1:1'}
+              {activeSection === 'simulador' && 'Simulador DISC Interativo'}
+              {activeSection === 'escalation' && 'Escalação e Prevenção de Conflitos'}
+              {activeSection === 'historico' && 'Histórico de Atas Bilaterais'}
+              {activeSection === 'rh' && 'Painel de Governança do RH'}
             </div>
-            <span className="font-bold text-xs tracking-tight text-slate-100 font-title uppercase font-mono">SyncHR</span>
           </div>
-          <button 
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 border border-slate-800 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 transition-all focus:outline-none"
-            title="Menu"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          
+          <div className="flex items-center gap-3">
+            {loadingDb ? (
+              <span className="text-xs text-indigo-400 flex items-center gap-1.5">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                Sincronizando Supabase...
+              </span>
+            ) : (
+              <span className="text-xs text-emerald-500 flex items-center gap-1">
+                <Check className="w-3.5 h-3.5" />
+                Conectado ao Supabase
+              </span>
+            )}
+          </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-8 space-y-6 w-full max-w-[1600px] mx-auto">
-        
-        {/* Floating Locked Warn Banner */}
-        {showWarning && (
-          <div className="p-4 bg-red-950/40 border border-red-900/60 rounded-xl text-red-400 text-xs flex gap-3 items-center justify-between sticky top-0 z-50 animate-bounce">
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-red-400 shrink-0" />
-              <div>
-                <strong>Acesso Restrito:</strong> É obrigatório responder ao Quiz de Onboarding para desbloquear o Copiloto e a Escalação.
+        {/* Dashboard Pages */}
+        <main className="flex-1 p-6 md:p-8 relative z-20 space-y-6">
+
+          {/* ==========================================
+              PAGE: ABOUT (PRODUCT PITCH)
+             ========================================== */}
+          {activeSection === 'about' && (
+            <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+              <div className="text-center space-y-3">
+                <span className="text-xs font-mono uppercase tracking-widest text-indigo-400 bg-indigo-950/40 border border-indigo-900/60 px-3 py-1 rounded-full">
+                  O Futuro da Liderança
+                </span>
+                <h1 className="text-3xl md:text-5xl font-black tracking-tight bg-gradient-to-r from-slate-100 via-indigo-200 to-cyan-400 bg-clip-text text-transparent font-title leading-tight">
+                  SyncHR (Smart Leading)
+                </h1>
+                <p className="text-slate-400 text-base max-w-2xl mx-auto leading-relaxed">
+                  A IA que conecta o humano à performance, eliminando o achismo e as muletas burocráticas do feedback corporativo.
+                </p>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-950 border border-indigo-800 flex items-center justify-center text-indigo-400">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-slate-200">Não é uma Muleta</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    O copiloto gera apenas cheatsheets focados em pontos de ação, forçando o líder a focar na escuta ativa (regra 70/30) em vez de apenas ler textos na tela.
+                  </p>
+                </div>
+
+                <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-3">
+                  <div className="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400">
+                    <FileCheck className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-slate-200">Validação Bilateral</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Toda ata exige a assinatura digital de ambas as partes (líder e liderado) após preencherem suas impressões brutas (RAW) de forma isolada.
+                  </p>
+                </div>
+
+                <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-slate-200">Consistência por IA</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    O Gemini API audita as percepções do líder vs. colaborador em tempo real. Qualquer desalinhamento de combinados acende um alerta preventivo para o RH.
+                  </p>
+                </div>
+              </div>
+
+              <div className="glass-card p-8 rounded-3xl border border-slate-800/80 bg-slate-900/10 grid md:grid-cols-2 gap-8 items-center">
+                <div className="space-y-4">
+                  <h3 className="text-xl md:text-2xl font-bold text-slate-100 font-title">Por que o SyncHR é Revolucionário?</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Diferente de sistemas legados de RH que tratam feedback como formulários frios salvos uma vez ao ano, o SyncHR atua de forma proativa nas reuniões cotidianas. 
+                  </p>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Ele cruza o estilo de liderança do gestor com o perfil comportamental DISC e a maturidade técnica (L1 a L4) do liderado, garantindo uma abordagem individualizada, segura (em conformidade com a LGPD) e persistente no banco de dados.
+                  </p>
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => handleSwitchSection(currentUser?.role === 'RH' ? 'rh' : 'onboarding')}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-slate-100 text-xs font-bold py-2.5 px-5 rounded-xl transition-all"
+                    >
+                      Começar a Usar
+                    </button>
+                  </div>
+                </div>
+                <div className="border border-slate-800 rounded-2xl bg-slate-950/60 p-5 space-y-3">
+                  <div className="text-xs font-mono uppercase text-indigo-400">Fluxo Organizacional</div>
+                  <div className="space-y-2">
+                    <div className="flex gap-2 items-center text-xs text-slate-300">
+                      <span className="w-5 h-5 rounded-full bg-indigo-950 flex items-center justify-center border border-indigo-900 text-[10px] text-indigo-400 font-bold">1</span>
+                      <span>O RH cadastra líderes e equipes no Supabase.</span>
+                    </div>
+                    <div className="flex gap-2 items-center text-xs text-slate-300">
+                      <span className="w-5 h-5 rounded-full bg-indigo-950 flex items-center justify-center border border-indigo-900 text-[10px] text-indigo-400 font-bold">2</span>
+                      <span>Líderes realizam onboarding e geram pautas no Gemini.</span>
+                    </div>
+                    <div className="flex gap-2 items-center text-xs text-slate-300">
+                      <span className="w-5 h-5 rounded-full bg-indigo-950 flex items-center justify-center border border-indigo-900 text-[10px] text-indigo-400 font-bold">3</span>
+                      <span>Reuniões 1:1 são gravadas com auditoria de concordância.</span>
+                    </div>
+                    <div className="flex gap-2 items-center text-xs text-slate-300">
+                      <span className="w-5 h-5 rounded-full bg-indigo-950 flex items-center justify-center border border-indigo-900 text-[10px] text-indigo-400 font-bold">4</span>
+                      <span>RH monitora a frequência e alertas de conflitos da empresa.</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <button onClick={() => setShowWarning(false)} className="text-red-400 font-bold">&times;</button>
-          </div>
-        )}
+          )}
 
-        {/* RENDER ACTIVE SECTION */}
+          {/* ==========================================
+              PAGE: ONBOARDING (LEADER SELF-ASSESSMENT)
+             ========================================== */}
+          {activeSection === 'onboarding' && (
+            <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-slate-100 font-title">Onboarding e Diagnóstico de Liderança</h2>
+                <p className="text-xs text-slate-400">Responda ao formulário situacional para a IA identificar seu perfil de atuação (Técnico, Transição ou Engajado).</p>
+              </div>
 
-        {/* 1. ONBOARDING / QUIZ PERFIL */}
-        {activeSection === 'onboarding' && (
-          <section className="space-y-6 animate-fade-in">
-            <header className="space-y-2">
-              <span className="text-xs bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-850 font-mono">F-01</span>
-              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight font-title text-slate-100">
-                Onboarding & Perfil de Liderança
-              </h1>
-              <p className="text-slate-400 text-sm max-w-3xl">
-                Responda às questões abaixo para que a inteligência artificial mapeie seu estilo de liderança. O tom de voz dos roteiros e o nível de profundidade dos feedbacks serão adaptados ao seu perfil.
-              </p>
-            </header>
-
-            <div className="grid gap-6 md:grid-cols-12">
-              
-              {/* Quiz Card */}
-              <div className="md:col-span-8 space-y-6">
+              <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-6">
                 
-                {quizQuestions.map((q) => (
-                  <div key={q.id} className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-4">
-                    <h3 className="text-sm font-semibold text-slate-200">{q.question}</h3>
-                    <div className="grid gap-3">
-                      {q.options.map((opt) => {
-                        const isSelected = answers[q.id] === opt.key;
-                        return (
+                {/* Level Selectors */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Cargo / Nível Atual</label>
+                    <select 
+                      value={levelFrom} 
+                      onChange={(e) => setLevelFrom(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                    >
+                      <option>Coordenador</option>
+                      <option>Líder Técnico</option>
+                      <option>Gerente Operacional</option>
+                      <option>Diretor</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Nível de Destino / Alvo</label>
+                    <select 
+                      value={levelTo} 
+                      onChange={(e) => setLevelTo(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                    >
+                      <option>Gerente de Engenharia</option>
+                      <option>Gerente Geral</option>
+                      <option>Diretor de Tecnologia</option>
+                      <option>C-Level</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-900 my-4" />
+
+                {/* Questions */}
+                <div className="space-y-6">
+                  {quizQuestions.map((q) => (
+                    <div key={q.id} className="space-y-3">
+                      <h4 className="text-sm font-semibold text-slate-200">{q.question}</h4>
+                      <div className="grid gap-2">
+                        {q.options.map((opt) => (
                           <button
                             key={opt.key}
-                            onClick={() => handleSelectAnswer(q.id, opt.key as 'A' | 'B' | 'C')}
-                            className={`w-full p-4 rounded-xl text-left text-xs leading-relaxed border transition-all hover:bg-slate-900/60 ${
-                              isSelected
-                                ? 'bg-indigo-900/20 border-indigo-500 text-slate-200 shadow-md shadow-indigo-500/5'
-                                : 'bg-slate-950/40 border-slate-800/80 text-slate-400'
+                            type="button"
+                            onClick={() => handleSelectOption(q.id, opt.key as any)}
+                            className={`p-3 text-xs text-left rounded-xl border transition-all ${
+                              answers[q.id] === opt.key
+                                ? 'bg-indigo-950/30 border-indigo-550 text-slate-100 font-medium'
+                                : 'bg-slate-900/30 border-slate-900 text-slate-400 hover:bg-slate-900/60'
                             }`}
                           >
-                            <span className="font-bold text-indigo-400 mr-2">{opt.key})</span>
+                            <span className="font-mono text-indigo-400 font-bold mr-2">{opt.key})</span>
                             {opt.text}
                           </button>
-                        );
-                      })}
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {showWarning && (
+                  <p className="text-xs text-amber-400 font-medium animate-pulse">⚠️ Por favor, responda todas as 7 perguntas antes de calcular seu perfil.</p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleCalculateProfile}
+                  className="w-full bg-indigo-650 hover:bg-indigo-550 text-slate-100 text-xs font-bold py-3 rounded-xl transition-all"
+                >
+                  Diagnosticar Perfil de Liderança
+                </button>
+              </div>
+
+              {diagnosedProfile && (
+                <div className="glass-card p-6 rounded-2xl border border-indigo-900/60 bg-indigo-950/20 space-y-4 animate-fade-in">
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-slate-100 text-sm uppercase tracking-wide">Seu Estilo Diagnosticado</h3>
+                    <div className="text-xl font-bold text-emerald-400 flex items-center gap-1.5">
+                      <span>{diagnosedProfile === 'TECNICO' ? '🤖' : diagnosedProfile === 'TRANSICAO' ? '🌱' : '🔥'}</span>
+                      <span>Líder {diagnosedProfile}</span>
                     </div>
                   </div>
-                ))}
-
-                {/* Level selection and actions */}
-                <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-6">
-                  <h3 className="text-sm font-semibold text-slate-200">2. Mapeamento de Organigrama (L1-L4)</h3>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-400 uppercase font-mono">Seu Cargo Atual</label>
-                      <select 
-                        value={levelFrom}
-                        onChange={(e) => setLevelFrom(e.target.value)}
-                        className="w-full bg-slate-950/60 border border-slate-800 rounded-xl py-2 px-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value="Colaborador L4">Colaborador Sênior (L4)</option>
-                        <option value="Coordenador">Coordenador</option>
-                        <option value="Gerente">Gerente</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-400 uppercase font-mono">Seu Próximo Cargo Alvo</label>
-                      <select
-                        value={levelTo}
-                        onChange={(e) => setLevelTo(e.target.value)}
-                        className="w-full bg-slate-950/60 border border-slate-800 rounded-xl py-2 px-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value="Coordenador">Coordenador</option>
-                        <option value="Gerente">Gerente</option>
-                        <option value="Diretor (C-Level)">Diretor (C-Level)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex gap-4">
-                    <button
-                      onClick={handleSaveOnboarding}
-                      disabled={!diagnosedProfile}
-                      className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-xs font-bold text-slate-100 disabled:opacity-50 transition-all glow-btn"
-                    >
-                      Salvar e Desbloquear Plataforma
-                    </button>
-                    {leaderProfile && leaderProfile.profile !== 'PENDENTE' && (
-                      <button
-                        onClick={handleResetOnboarding}
-                        className="px-6 py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-850 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all"
-                      >
-                        Resetar Perfil
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Diagnosis Sidebar Results */}
-              <div className="md:col-span-4">
-                <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-900/30 sticky top-8 space-y-4">
-                  <span className="text-xs uppercase font-mono bg-cyan-950/50 text-cyan-400 border border-cyan-900/40 px-2 py-0.5 rounded">
-                    Diagnóstico IA em Tempo Real
-                  </span>
-                  
-                  {diagnosedProfile ? (
-                    (() => {
-                      const meta = getProfileMetadata(diagnosedProfile);
-                      return (
-                        <div className="space-y-4">
-                          <div>
-                            <h3 className="text-md font-bold text-slate-100">{meta.title}</h3>
-                            <p className="text-xs text-slate-500 mt-1">
-                              Foco: {levelFrom} ➔ {levelTo}
-                            </p>
-                          </div>
-                          <p className="text-xs text-slate-400 leading-relaxed bg-slate-950/40 p-3 rounded-xl border border-slate-900">
-                            {meta.desc}
-                          </p>
-                          <div className="p-3.5 rounded-xl border border-indigo-900/20 bg-indigo-950/10 text-xs text-indigo-300 leading-normal">
-                            <strong>Tom de Roteiro Adaptado:</strong> A IA priorizará pragmatismo e instruções alinhadas com as dores de transição de nível corporativo da Clear IT.
-                          </div>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div className="py-8 text-center text-slate-500 text-xs space-y-2">
-                      <p>Responda às 10 perguntas para carregar o mapeamento automatizado de liderança.</p>
-                      <span className="inline-block animate-pulse text-indigo-400">⚡ Aguardando...</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          </section>
-        )}
-
-        {/* 2. COPILOTO 1:1 (Antes da conversa e durante) */}
-        {activeSection === 'copiloto' && (
-          <section className="space-y-6 animate-fade-in">
-            <header className="space-y-1">
-              <span className="text-xs bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-850 font-mono">F-03</span>
-              <h1 className="text-2xl font-extrabold tracking-tight font-title text-slate-100">
-                Copiloto de Reuniões 1:1 & Feedbacks
-              </h1>
-              <p className="text-slate-400 text-xs">
-                Prepare sua pauta de feedback em menos de 3 minutos e conte com o assistente inteligente durante a reunião.
-              </p>
-            </header>
-
-            {/* Safety & Human-in-the-loop Banners */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="p-3.5 bg-slate-900/60 border border-slate-800 rounded-xl flex gap-3 text-xs text-slate-400 items-start">
-                <span className="text-lg">🔒</span>
-                <div>
-                  <strong className="text-slate-300">Higienização e Proteção LGPD:</strong> O sistema remove nomes completos e dados pessoais sensíveis automaticamente (RN01/RN09).
-                </div>
-              </div>
-              <div className="p-3.5 bg-amber-950/20 border border-amber-900/50 rounded-xl flex gap-3 text-xs text-amber-400 items-start">
-                <Info className="w-5 h-5 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-amber-300">Responsabilidade Humana (Human-in-the-loop):</strong> O Smart Leading é suporte consultivo. A tomada de decisões e feedbacks são de responsabilidade do líder. Evite jargões técnicos excessivos (RN02/RN07/RN08).
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-12">
-              
-              {/* Form Config Script */}
-              <div className="md:col-span-5 space-y-4">
-                <div className="glass-card p-5 rounded-2xl border border-slate-800/80 bg-slate-900/20 space-y-4">
-                  <h3 className="text-sm font-semibold text-slate-200">1. Preparação da Reunião</h3>
-
-                  {/* Select Colab */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-400 uppercase font-mono">Selecionar Liderado</label>
-                    <select
-                      value={selectedColabId}
-                      onChange={(e) => setSelectedColabId(e.target.value)}
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded-xl py-2 px-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500"
-                    >
-                      {MOCK_COLLABORATORS.map(c => (
-                        <option key={c.id} value={c.id}>{c.name} ({c.role})</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Active Colab details display */}
-                  <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-900 text-xs space-y-1.5">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Perfil DISC:</span>
-                      <span className="font-semibold text-indigo-400">{activeColab.disc}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Nível Operacional:</span>
-                      <span className="font-semibold text-slate-300">{activeColab.level}</span>
-                    </div>
-                  </div>
-
-                  {/* Select Meeting Type */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-400 uppercase font-mono">Tipo de Reunião</label>
-                    <select
-                      value={meetingType}
-                      onChange={(e) => setMeetingType(e.target.value)}
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded-xl py-2 px-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500"
-                    >
-                      <option value="Quinzenal Rotineira">Quinzenal Rotineira</option>
-                      <option value="Feedback de Baixa Performance">Feedback de Baixa Performance (Crítico)</option>
-                      <option value="Carreira & PDI">Alinhamento de Carreira & PDI</option>
-                    </select>
-                  </div>
-
-                  {/* Select Context */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-400 uppercase font-mono">Contexto de Impedimento</label>
-                    <textarea
-                      value={impedimentContext}
-                      onChange={(e) => setImpedimentContext(e.target.value)}
-                      rows={3}
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500 font-sans"
-                      placeholder="Descreva o contexto geral..."
-                    />
-                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    {diagnosedProfile === 'TECNICO' && "Seu perfil foca em entregas operacionais objetivas, check-ins diretos e eliminação de impedimentos e burocracia de RH. A IA formulará roteiros enxutos de foco prático."}
+                    {diagnosedProfile === 'TRANSICAO' && "Seu perfil é estruturado e requer o método SBI (Situação, Comportamento, Impacto) e inteligência emocional para guiar feedbacks sensíveis com segurança."}
+                    {diagnosedProfile === 'ENGAJADO' && "Seu perfil prioriza agilidade, planos de PDI rápidos e alinhamentos de carreira eficientes de menos de 3 minutos de preparação."}
+                  </p>
 
                   <button
-                    onClick={handleGenerateScript}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-slate-100 text-xs font-bold py-2.5 rounded-xl transition-all shadow-md hover:shadow-indigo-500/5 glow-btn"
+                    type="button"
+                    onClick={handleSaveProfile}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-slate-100 text-xs font-bold py-2.5 px-6 rounded-xl transition-all flex items-center gap-2"
                   >
-                    Gerar Roteiro Personalizado
+                    <Check className="w-4 h-4" />
+                    Confirmar e Gravar no Supabase
                   </button>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ==========================================
+              PAGE: COPILOTO (STEPPER 1:1 FLOW)
+             ========================================== */}
+          {activeSection === 'copiloto' && (
+            <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+              
+              {/* Step Progress bar */}
+              <div className="relative p-4 rounded-xl border border-slate-900 bg-slate-950/30">
+                <div className="flex justify-between items-center max-w-xl mx-auto relative z-10">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <div key={s} className="flex flex-col items-center gap-1">
+                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-mono text-xs font-bold transition-all ${
+                        meetingStep === s
+                          ? 'bg-indigo-650 border-indigo-500 text-slate-100 shadow-lg shadow-indigo-500/20'
+                          : meetingStep > s
+                          ? 'bg-emerald-950/40 border-emerald-500 text-emerald-400'
+                          : 'bg-slate-900 border-slate-800 text-slate-500'
+                      }`}>
+                        {meetingStep > s ? <Check className="w-4.5 h-4.5" /> : s}
+                      </div>
+                      <span className={`text-[10px] uppercase font-mono tracking-wider font-semibold ${
+                        meetingStep === s ? 'text-indigo-400' : 'text-slate-600'
+                      }`}>
+                        {s === 1 && 'Preparo'}
+                        {s === 2 && 'Roteiro'}
+                        {s === 3 && 'Condução'}
+                        {s === 4 && 'Ata RAW'}
+                        {s === 5 && 'Validação'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {/* Progress line */}
+                <div className="absolute top-[28px] left-[15%] right-[15%] h-[1px] bg-slate-900 z-0" />
               </div>
 
-              {/* Roteiro Result Display */}
-              <div className="md:col-span-7 space-y-6">
-                {generatedScript ? (
-                  <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/30 space-y-4">
-                    <div className="flex justify-between items-center pb-3 border-b border-slate-850">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                        <h3 className="text-sm font-bold text-slate-100">Roteiro Inteligente Calibrado</h3>
+              {/* STEP 1: PREPARAÇÃO */}
+              {meetingStep === 1 && (
+                <div className="grid md:grid-cols-3 gap-6 animate-fade-in">
+                  
+                  {/* Form fields */}
+                  <div className="md:col-span-2 glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
+                    <h3 className="font-bold text-slate-200 text-base">Mapeamento da Reunião</h3>
+                    
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Selecionar Liderado</label>
+                      <select 
+                        value={selectedColabId} 
+                        onChange={(e) => setSelectedColabId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        {collaborators.map(c => (
+                          <option key={c.id} value={c.id}>{c.name} ({c.disc})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Maturidade Técnica</label>
+                        <select 
+                          value={collaboratorLevel} 
+                          onChange={(e) => setCollaboratorLevel(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                        >
+                          <option value="L1">L1 (Júnior)</option>
+                          <option value="L2">L2 (Pleno)</option>
+                          <option value="L3">L3 (Sênior)</option>
+                          <option value="L4">L4 (Staff/Principal)</option>
+                        </select>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleCopyScript}
-                          className="text-slate-400 hover:text-slate-200 text-xs flex items-center gap-1.5 bg-slate-900/60 border border-slate-850 px-2.5 py-1 rounded-lg transition-all"
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Modelo de ATA</label>
+                        <select 
+                          value={selectedAtaTemplate} 
+                          onChange={(e) => setSelectedAtaTemplate(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                         >
-                          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                          <span>{copied ? 'Copiado!' : 'Copiar'}</span>
-                        </button>
-                        <button
-                          onClick={handleSimulateSendEmail}
-                          className="text-slate-400 hover:text-slate-200 text-xs flex items-center gap-1.5 bg-slate-900/60 border border-slate-850 px-2.5 py-1 rounded-lg transition-all"
-                        >
-                          <Mail className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Simular Envio</span>
-                        </button>
+                          <option value="rotineira">Rotineira / Check-in</option>
+                          <option value="pdi">Desempenho & PDI</option>
+                          <option value="conflito">Alinhamento de Conflito</option>
+                          <option value="scrum">Foco em Kanban / Código</option>
+                        </select>
                       </div>
                     </div>
 
-                    {showEmailSuccess && lastSentEmail && (
-                      <div className="p-3 bg-emerald-950/30 border border-emerald-900/50 rounded-xl flex flex-col gap-2 animate-fade-in text-xs">
-                        <div className="flex justify-between items-center text-emerald-400 font-semibold">
-                          <div className="flex items-center gap-1.5">
-                            <Check className="w-4 h-4" />
-                            <span>E-mail Simulado Enviado!</span>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Tipo da Agenda</label>
+                      <input 
+                        type="text" 
+                        value={meetingType}
+                        onChange={(e) => setMeetingType(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Contexto / Impedimento a Tratar</label>
+                      <textarea
+                        rows={3}
+                        value={impedimentContext}
+                        onChange={(e) => setImpedimentContext(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-sans"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={loadingScript}
+                      onClick={handleGenerateScript}
+                      className="w-full bg-indigo-650 hover:bg-indigo-550 text-slate-100 text-xs font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      {loadingScript ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Acionando Gemini API...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Gerar Roteiro Inteligente
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* HR Advisor Widget */}
+                  <div className="space-y-6">
+                    <div className="glass-card p-5 rounded-2xl border border-indigo-950 bg-indigo-950/20 space-y-4">
+                      <div className="flex items-center gap-2 text-indigo-400 font-mono text-xs font-semibold uppercase tracking-wider">
+                        <Info className="w-4 h-4" />
+                        <span>Priscila AI Advisor (RH)</span>
+                      </div>
+                      <div className="text-xs text-slate-400 leading-relaxed italic">
+                        "Como gerente de RH, aconselho que ao conversar com colaboradores {activeColab.disc === 'DOMINANTE' ? 'Dominantes' : activeColab.disc === 'ESTAVEL' ? 'Estáveis' : activeColab.disc === 'ANALITICO' ? 'Analíticos' : 'Influentes'}, evite questionários frios. {activeColab.disc === 'ESTAVEL' && 'Dê tempo para ela processar a resposta e foque no ritmo da sprint.'}{activeColab.disc === 'DOMINANTE' && 'Seja direto e foque em metas de entrega palpáveis.'} Lembre-se do consentimento de opt-in de privacidade."
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/10 space-y-3">
+                      <h4 className="text-xs font-bold text-slate-200 font-mono uppercase tracking-wider">DISC Dicas rápidas:</h4>
+                      <div className="text-xs space-y-1.5 text-slate-400">
+                        <p><strong>Nome:</strong> {activeColab.name}</p>
+                        <p><strong>DISC:</strong> {activeColab.disc}</p>
+                        <p><strong>Nível:</strong> {collaboratorLevel}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: ROTEIRO & WIDGETS */}
+              {meetingStep === 2 && (
+                <div className="grid md:grid-cols-3 gap-6 animate-fade-in">
+                  
+                  {/* Left: Interactive Widgets (Kanban / Sliders) */}
+                  <div className="space-y-6">
+                    
+                    {/* Visual Kanban Checklist */}
+                    <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
+                      <h3 className="font-bold text-slate-200 text-sm font-title flex items-center gap-1.5">
+                        <ClipboardList className="w-4 h-4 text-indigo-400" />
+                        Kanban Sugerido
+                      </h3>
+                      <p className="text-[11px] text-slate-500">Items de ação para propor e debater na sprint:</p>
+                      <div className="space-y-2">
+                        {kanbanTasks.map(task => (
+                          <div 
+                            key={task.id} 
+                            onClick={() => {
+                              setKanbanTasks(prev => 
+                                prev.map(t => t.id === task.id ? { ...t, status: t.status === 'done' ? 'todo' : 'done' } : t)
+                              );
+                            }}
+                            className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex items-center justify-between ${
+                              task.status === 'done'
+                                ? 'bg-indigo-950/20 border-indigo-900/60 text-slate-400 line-through'
+                                : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-900'
+                            }`}
+                          >
+                            <span>{task.title}</span>
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                              task.status === 'done' ? 'bg-indigo-650 border-indigo-500' : 'border-slate-700'
+                            }`}>
+                              {task.status === 'done' && <Check className="w-3.5 h-3.5 text-slate-100" />}
+                            </div>
                           </div>
-                          <button onClick={() => setShowEmailSuccess(false)} className="text-slate-400 hover:text-slate-200 font-bold">&times;</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Delivery Adjustments (Sliders) */}
+                    <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
+                      <h3 className="font-bold text-slate-200 text-sm font-title flex items-center gap-1.5">
+                        <Sliders className="w-4 h-4 text-cyan-400" />
+                        Ajuste de Entrega
+                      </h3>
+                      {deliveryAdjustment && (
+                        <div className="p-2.5 rounded-lg bg-cyan-950/20 border border-cyan-900/40 text-[11px] text-cyan-300 space-y-1 mb-2">
+                          <p><strong>Prazo Proposto:</strong> {deliveryAdjustment.proposedDeadline}</p>
+                          <p><strong>Mudança de Escopo:</strong> {deliveryAdjustment.scopeChange}</p>
                         </div>
-                        <div className="text-xs text-slate-400 font-mono bg-slate-950/30 p-2.5 rounded-lg border border-slate-900 space-y-0.5">
-                          <div><strong>De:</strong> {lastSentEmail.from}</div>
-                          <div><strong>Para:</strong> {lastSentEmail.to}</div>
-                          <div><strong>Assunto:</strong> {lastSentEmail.subject}</div>
-                          <div className="mt-1.5 pt-1.5 border-t border-slate-900 text-slate-500 max-h-[85px] overflow-y-auto whitespace-pre-wrap">{lastSentEmail.body}</div>
+                      )}
+                      
+                      {/* Sliders */}
+                      <div className="space-y-3 pt-2">
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-slate-400">
+                            <span>Escopo Reduzido</span>
+                            <span>Escopo Total</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0" max="100" 
+                            value={scopeSlider} 
+                            onChange={(e) => setScopeSlider(parseInt(e.target.value))}
+                            className="w-full accent-indigo-500"
+                          />
+                          <div className="text-right text-[10px] text-indigo-400 font-bold">{scopeSlider}% de carga</div>
                         </div>
-                        <div className="text-[10px] text-slate-500 italic">
-                          * Este envio é mockado e foi registrado no log de auditoria no Painel do RH.
+
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-slate-400">
+                            <span>Prazo Curto</span>
+                            <span>Prazo Extendido</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0" max="100" 
+                            value={deadlineSlider} 
+                            onChange={(e) => setDeadlineSlider(parseInt(e.target.value))}
+                            className="w-full accent-cyan-500"
+                          />
+                          <div className="text-right text-[10px] text-cyan-400 font-bold">{deadlineSlider}% de prazo</div>
                         </div>
                       </div>
-                    )}
+                    </div>
 
-                    <div className="text-xs text-slate-300 leading-relaxed font-mono whitespace-pre-wrap max-h-[220px] overflow-y-auto bg-slate-950/30 p-4 rounded-xl border border-slate-900/40">
+                  </div>
+
+                  {/* Right: concise generated cheatsheet */}
+                  <div className="md:col-span-2 glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 flex flex-col space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-bold text-slate-200 text-base">Roteiro Recomendado pelo Gemini</h3>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedScript);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className="text-slate-400 hover:text-slate-200 flex items-center gap-1 text-xs"
+                      >
+                        {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copied ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+
+                    <div className="flex-1 p-4 rounded-xl border border-slate-900 bg-slate-900/30 overflow-y-auto max-h-[350px] font-sans text-xs text-slate-300 leading-relaxed whitespace-pre-line">
                       {generatedScript}
                     </div>
 
-                    <div className="p-3 bg-indigo-950/15 border border-indigo-900/20 text-xs text-indigo-300 rounded-lg">
-                      💡 <strong>Diretriz Human-in-the-loop:</strong> Adapte a comunicação do roteiro de acordo com a realidade. Use o roteiro como sugestão ética.
+                    <div className="flex gap-4 pt-2">
+                      <button
+                        onClick={() => setMeetingStep(1)}
+                        className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-bold py-2.5 px-5 rounded-xl transition-all"
+                      >
+                        Voltar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMeetingStep(3);
+                          startTimer();
+                        }}
+                        className="flex-1 bg-indigo-650 hover:bg-indigo-550 text-slate-100 text-xs font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                      >
+                        Iniciar Condução
+                        <Play className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="h-full min-h-[180px] rounded-2xl border border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-500 text-xs space-y-2 p-6">
-                    <Sparkles className="w-8 h-8 text-slate-600" />
-                    <p>Preencha as configurações ao lado e clique em Gerar Roteiro.</p>
-                  </div>
-                )}
+                </div>
+              )}
 
-                {/* 2. Registro e Transcrição da Reunião */}
-                <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-4">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-200">2. Registro e Transcrição da Reunião (Durante/Após o Diálogo)</h3>
-                    <p className="text-xs text-slate-500">Escreva o que o colaborador falou durante a reunião de 1:1 para realizar a avaliação de abordagem:</p>
-                  </div>
+              {/* STEP 3: CONDUÇÃO & LIVE ASSIST */}
+              {meetingStep === 3 && (
+                <div className="grid md:grid-cols-3 gap-6 animate-fade-in">
+                  
+                  {/* Live timers and suggestions */}
+                  <div className="space-y-6">
+                    
+                    {/* Timer Widget */}
+                    <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-3 text-center">
+                      <h4 className="text-slate-400 text-xs font-mono uppercase tracking-wider">Cronômetro da 1:1</h4>
+                      <div className="text-3xl font-black font-mono text-indigo-400">
+                        {formatTime(liveTalkTime)}
+                      </div>
+                      
+                      <div className="border-t border-slate-900/60 my-2 pt-2 space-y-1.5 text-left">
+                        <div className="flex justify-between text-[11px] text-slate-400">
+                          <span>Proporção de Fala Líder:</span>
+                          <span className="font-bold">{leaderTalkPercentage}%</span>
+                        </div>
+                        <input 
+                          type="range" min="10" max="90" 
+                          value={leaderTalkPercentage} 
+                          onChange={(e) => setLeaderTalkPercentage(parseInt(e.target.value))}
+                          className="w-full accent-indigo-500" 
+                        />
+                        <div className="text-[10px] text-slate-500 italic">
+                          {leaderTalkPercentage <= 30 
+                            ? 'Foco excelente! A regra 70/30 está sendo respeitada.' 
+                            : 'Cuidado! A liderança está falando muito. O colaborador deve falar mais.'}
+                        </div>
+                      </div>
 
-                  {/* Predefined mock templates */}
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Falas Rápidas do Colaborador (Exemplos):</span>
-                    <div className="grid md:grid-cols-3 gap-2">
-                      {getColabQuestions(selectedColabId).map((q, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setTranscriptionText(q.text)}
-                          className="p-2.5 text-xs text-left rounded-lg bg-slate-950/40 border border-slate-800/80 hover:bg-slate-900/60 text-slate-300 transition-all truncate"
-                          title={q.text}
+                      <div className="flex gap-2 justify-center pt-2">
+                        <button 
+                          onClick={timerRef.current ? stopTimer : startTimer}
+                          className={`text-xs px-3 py-1.5 rounded-lg border font-semibold ${
+                            timerRef.current 
+                              ? 'bg-red-950/30 border-red-900/40 text-red-400' 
+                              : 'bg-emerald-950/30 border-emerald-900/40 text-emerald-400'
+                          }`}
                         >
-                          {q.label}
+                          {timerRef.current ? 'Pausar' : 'Iniciar'}
                         </button>
-                      ))}
+                        <button 
+                          onClick={resetTimer}
+                          className="bg-slate-900 text-slate-400 border border-slate-800 text-xs px-3 py-1.5 rounded-lg"
+                        >
+                          Zerar
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Live Questions Logger */}
+                    <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-3">
+                      <h4 className="text-slate-200 text-xs font-bold font-mono uppercase tracking-wider">Histórico Live</h4>
+                      <div className="max-h-[150px] overflow-y-auto space-y-1.5 text-[11px] font-mono text-slate-400">
+                        {liveQuestionsLog.length === 0 ? (
+                          <span className="text-slate-600">Nenhum diálogo registrado. Digite à direita para interagir.</span>
+                        ) : (
+                          liveQuestionsLog.map((log, idx) => (
+                            <div key={idx} className="border-b border-slate-900/40 pb-1">{log}</div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Chat interface */}
+                  <div className="md:col-span-2 glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 flex flex-col space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="font-bold text-slate-200 text-base">Copiloto em Tempo Real (Live Assist)</h3>
+                      <p className="text-xs text-slate-400">Digite abaixo o que o colaborador expressou. A IA analisará o perfil e sugerirá o melhor aprofundamento.</p>
+                    </div>
+
+                    {/* Assist responses */}
+                    <div className="flex-1 p-4 rounded-xl border border-slate-900 bg-slate-900/30 min-h-[180px] overflow-y-auto space-y-3">
+                      <div className="text-xs text-indigo-400 font-semibold font-mono">💡 SUGESTÕES DO GEMINI:</div>
+                      {loadingLiveChat ? (
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          Gemini interpretando e calculando empatia...
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {liveSuggestions.length === 0 ? (
+                            <p className="text-xs text-slate-500 italic">Digite algo na caixa de live chat abaixo para ver conselhos em tempo real.</p>
+                          ) : (
+                            liveSuggestions.map((sug, i) => (
+                              <p key={i} className="text-xs text-slate-300 leading-relaxed bg-slate-950/30 p-2 rounded-lg border border-slate-900">{sug}</p>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Input message form */}
+                    <form onSubmit={handleSendLiveMessage} className="flex gap-2">
+                      <input 
+                        type="text" 
+                        required
+                        value={chatMessage}
+                        onChange={(e) => setChatMessage(e.target.value)}
+                        placeholder="Ex: 'Estou achando as tarefas de Next.js confusas e me sinto exausta...'"
+                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-4 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                      />
+                      <button 
+                        type="submit" 
+                        className="bg-indigo-650 hover:bg-indigo-550 p-2.5 rounded-xl text-slate-100"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </form>
+
+                    <div className="flex gap-4 pt-2">
+                      <button
+                        onClick={() => {
+                          stopTimer();
+                          setMeetingStep(2);
+                        }}
+                        className="bg-slate-900 border border-slate-800 text-slate-400 text-xs font-bold py-2.5 px-5 rounded-xl"
+                      >
+                        Voltar ao Roteiro
+                      </button>
+                      <button
+                        onClick={() => {
+                          stopTimer();
+                          setMeetingStep(4);
+                        }}
+                        className="flex-1 bg-indigo-650 hover:bg-indigo-550 text-slate-100 text-xs font-bold py-2.5 rounded-xl transition-all"
+                      >
+                        Concluir e Ir para Registro
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4: REGISTRO RAW & TRANSCRIÇÃO */}
+              {meetingStep === 4 && (
+                <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-6 animate-fade-in">
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-slate-200 text-base">Registrar Notas e Ata da Reunião</h3>
+                    <p className="text-xs text-slate-400">Em conformidade com a LGPD e o padrão bivalente de confiança, insira as anotações separadas de cada parte.</p>
+                  </div>
+
+                  {/* Dual raw note textareas */}
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-slate-300 font-semibold font-mono uppercase tracking-wider block">O que o Líder Observou (Notas RAW do Líder)</label>
+                      <textarea
+                        rows={4}
+                        required
+                        value={rawLeaderNotes}
+                        onChange={(e) => setRawLeaderNotes(e.target.value)}
+                        placeholder="Ex: Carlos sinalizou cansaço técnico. Acordamos fatiar suas tarefas da sprint. Ele pareceu focado em resolver."
+                        className="w-full bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-sans"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-slate-300 font-semibold font-mono uppercase tracking-wider block">O que o Colaborador Relatou (Notas RAW do Colaborador)</label>
+                      <textarea
+                        rows={4}
+                        required
+                        value={rawCollaboratorNotes}
+                        onChange={(e) => setRawCollaboratorNotes(e.target.value)}
+                        placeholder="Ex: O ritmo de homologação do QA está impossível. Sinto-me sobrecarregado porque tudo trava no review."
+                        className="w-full bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-sans"
+                      />
                     </div>
                   </div>
 
-                  {/* Transcription Input Field */}
-                  <div className="space-y-1.5 text-left">
-                    <label className="text-xs font-semibold text-slate-400 uppercase font-mono block">Relato do Colaborador</label>
+                  {/* Transcription box */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-slate-300 font-semibold font-mono uppercase tracking-wider block">Transcrição da Conversa / Diálogo Livre (Opcional)</label>
                     <textarea
+                      rows={3}
                       value={transcriptionText}
                       onChange={(e) => setTranscriptionText(e.target.value)}
-                      rows={4}
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500 font-sans"
-                      placeholder="Descreva detalhadamente o que o colaborador falou..."
+                      placeholder="Transcrição da gravação do áudio ou observações da pauta corrida..."
+                      className="w-full bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-sans"
                     />
                   </div>
 
-                  {/* LGPD Consent (Passo 5) */}
-                  <div className="p-3.5 rounded-xl border border-indigo-950/40 bg-indigo-950/5 flex items-center justify-between text-xs gap-4 text-left">
-                    <div className="space-y-0.5">
-                      <span className="font-semibold block text-slate-300">Consentimento de Registro (LGPD Opt-in)</span>
-                      <span className="text-[10px] text-slate-500 leading-relaxed">
-                        Declaro que o colaborador deu opt-in inequívoco para o registro estruturado das notas da reunião.
-                      </span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                      <input 
-                        type="checkbox" 
-                        checked={lgpdConsent}
-                        onChange={(e) => setLgpdConsent(e.target.checked)}
-                        className="sr-only peer" 
-                      />
-                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 font-sans"></div>
+                  {/* LGPD Consent */}
+                  <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-950/20 border border-indigo-900/50">
+                    <input 
+                      type="checkbox" 
+                      id="lgpd" 
+                      checked={lgpdConsent}
+                      onChange={(e) => setLgpdConsent(e.target.checked)}
+                      className="w-4 h-4 accent-indigo-500 shrink-0 mt-0.5" 
+                    />
+                    <label htmlFor="lgpd" className="text-xs text-slate-400 select-none">
+                      <strong>[Opt-in LGPD]</strong> O colaborador está presente e outorga consentimento explícito para registrar suas percepções de desenvolvimento profissional. Proibida a inclusão de CPFs, e-mails ou atestados médicos no texto.
                     </label>
                   </div>
 
-                  <button
-                    onClick={handleEvaluateAndArchive}
-                    disabled={isEvaluating}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-slate-100 text-xs font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 glow-btn disabled:opacity-55"
-                  >
-                    <span>{isEvaluating ? 'Processando Avaliação...' : 'Gerar Avaliação Pós-Reunião & Arquivar'}</span>
-                    <Sparkles className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => setMeetingStep(3)}
+                      className="bg-slate-900 border border-slate-800 text-slate-400 text-xs font-bold py-2.5 px-5 rounded-xl"
+                    >
+                      Voltar
+                    </button>
+                    <button
+                      onClick={handleEvaluateMeeting}
+                      disabled={isEvaluating}
+                      className="flex-1 bg-indigo-650 hover:bg-indigo-550 disabled:opacity-50 text-slate-100 text-xs font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                    >
+                      {isEvaluating ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Auditando e Analisando Consistência...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Auditar e Gerar Resumo da Reunião
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
-                  {/* Evaluation Result Display */}
-                  {evaluationResult && (
-                    <div className="p-4 bg-slate-950/80 border border-slate-850 rounded-xl space-y-3.5 animate-fade-in text-left">
-                      <div className="flex justify-between items-center text-xs border-b border-slate-900 pb-2">
-                        <div className="flex items-center gap-1.5 text-indigo-400 font-semibold font-title">
-                          <Sparkles className="w-4 h-4 text-indigo-400" />
-                          <span>Avaliação da IA Pós-Reunião (Feedback SBI & DISC)</span>
+              {/* STEP 5: VALIDAÇÃO & ASSINATURA */}
+              {meetingStep === 5 && evaluationResult && (
+                <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-6 animate-fade-in">
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-slate-200 text-base">Resultado da Avaliação & Fechamento</h3>
+                    <p className="text-xs text-slate-400">Abaixo está o parecer e resumo gerados pelo Gemini API a partir da leitura cruzada de ambos os lados.</p>
+                  </div>
+
+                  {/* Consistency Analysis Display */}
+                  <div className={`p-4 rounded-xl border ${
+                    evaluationResult.consistencyResult?.consistent 
+                      ? 'bg-emerald-950/20 border-emerald-900/60 text-slate-300' 
+                      : 'bg-amber-950/20 border-amber-900/60 text-slate-300'
+                  } space-y-3`}>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        {evaluationResult.consistencyResult?.consistent ? (
+                          <div className="w-6 h-6 rounded-full bg-emerald-950 border border-emerald-500 flex items-center justify-center text-emerald-400 text-xs font-bold">✓</div>
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-amber-950 border border-amber-500 flex items-center justify-center text-amber-400 text-xs font-bold">!</div>
+                        )}
+                        <h4 className="text-sm font-bold">
+                          {evaluationResult.consistencyResult?.consistent 
+                            ? 'Concordância Detectada de Informações' 
+                            : 'Divergência / Desalinhamento Detectado'}
+                        </h4>
+                      </div>
+                      <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
+                        evaluationResult.consistencyResult?.consistent ? 'bg-emerald-900/40 text-emerald-300' : 'bg-amber-900/40 text-amber-300'
+                      }`}>
+                        Alinhamento: {evaluationResult.consistencyResult?.confidenceScore}%
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-slate-400">
+                      {evaluationResult.consistencyResult?.details}
+                    </p>
+                  </div>
+
+                  {/* Compiled Summary */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-400">Resumo Final Consolidado da Reunião:</h4>
+                    <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-850 text-xs text-slate-300 leading-relaxed whitespace-pre-line">
+                      {evaluationResult.finalSummary}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="p-3 bg-slate-900/30 rounded-xl border border-slate-850 space-y-1">
+                      <div className="text-slate-500 font-mono">Calibração Liderança</div>
+                      <div className="text-base font-bold text-indigo-400">{evaluationResult.score}/100</div>
+                    </div>
+                    <div className="p-3 bg-slate-900/30 rounded-xl border border-slate-850 space-y-1">
+                      <div className="text-slate-500 font-mono">Sugestão de Tags</div>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {evaluationResult.topics?.map((topic, i) => (
+                          <span key={i} className="text-[10px] bg-slate-800 text-indigo-300 px-1.5 py-0.5 rounded">{topic}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dual digital signature fields */}
+                  <div className="border-t border-slate-900 pt-4 space-y-4">
+                    <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-400">Dupla Validação (Sign-off)</h4>
+                    
+                    {/* Switch persona to sign as colab */}
+                    <div className="flex items-center gap-2 text-xs text-slate-400 pb-2">
+                      <input 
+                        type="checkbox" 
+                        id="simcolab"
+                        checked={isSimulationToggle}
+                        onChange={(e) => setIsSimulationToggle(e.target.checked)}
+                        className="w-4 h-4 accent-indigo-500" 
+                      />
+                      <label htmlFor="simcolab" className="cursor-pointer">Simular interruptor de dispositivo do Liderado ({activeColab.name})</label>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      
+                      {/* Leader sign */}
+                      <div className={`p-4 rounded-xl border ${
+                        leaderApproved ? 'bg-emerald-950/20 border-emerald-900/40 text-emerald-400' : 'bg-slate-900/40 border-slate-850 text-slate-400'
+                      } flex items-center justify-between`}>
+                        <div>
+                          <div className="font-bold text-xs">Assinatura Líder</div>
+                          <div className="text-[11px] text-slate-500">{currentUser?.name}</div>
                         </div>
-                        <span className="font-mono text-emerald-400 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-850">
-                          Calibração: {evaluationResult.score}/100
-                        </span>
+                        <button
+                          onClick={() => setLeaderApproved(prev => !prev)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                            leaderApproved 
+                              ? 'bg-emerald-600 text-slate-100 border-emerald-500' 
+                              : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
+                          }`}
+                        >
+                          {leaderApproved ? '✓ Assinado' : 'Assinar'}
+                        </button>
                       </div>
 
-                      <div className="space-y-1.5 text-xs">
-                        <div className="text-slate-500 font-mono uppercase text-[9px] tracking-wider">Tópicos Identificados:</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {evaluationResult.topics.map((t, idx) => (
-                            <span key={idx} className="bg-indigo-950/40 text-indigo-300 border border-indigo-900/30 px-2 py-0.5 rounded text-[10px] font-semibold">
-                              {t}
+                      {/* Colab sign */}
+                      <div className={`p-4 rounded-xl border ${
+                        collaboratorApproved ? 'bg-emerald-950/20 border-emerald-900/40 text-emerald-400' : 'bg-slate-900/40 border-slate-850 text-slate-400'
+                      } flex items-center justify-between`}>
+                        <div>
+                          <div className="font-bold text-xs">Assinatura Liderado</div>
+                          <div className="text-[11px] text-slate-500">{activeColab.name}</div>
+                        </div>
+                        <button
+                          disabled={!isSimulationToggle}
+                          onClick={() => setCollaboratorApproved(prev => !prev)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                            collaboratorApproved 
+                              ? 'bg-emerald-600 text-slate-100 border-emerald-500' 
+                              : !isSimulationToggle 
+                              ? 'bg-slate-900 opacity-40 cursor-not-allowed border-slate-800 text-slate-500'
+                              : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
+                          }`}
+                        >
+                          {collaboratorApproved ? '✓ Assinado' : 'Assinar'}
+                        </button>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-4">
+                    <button
+                      onClick={() => setMeetingStep(4)}
+                      className="bg-slate-900 border border-slate-800 text-slate-400 text-xs font-bold py-2.5 px-5 rounded-xl"
+                    >
+                      Voltar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGenerateFeedbackLink}
+                      className="flex-1 bg-cyan-650 hover:bg-cyan-550 text-slate-100 text-xs font-bold py-2.5 px-5 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      {savedMeetingId ? 'Copiar Link Liderado' : 'Gerar Link Feedback'}
+                    </button>
+                    <button
+                      onClick={handleArchiveMeeting}
+                      className="flex-1 bg-indigo-650 hover:bg-indigo-550 text-slate-100 text-xs font-bold py-2.5 rounded-xl transition-all"
+                    >
+                      Arquivar no Supabase & Fechar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* ==========================================
+              PAGE: HISTORICO (ONE-ON-ONES)
+             ========================================== */}
+          {activeSection === 'historico' && (
+            <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-slate-100 font-title">Histórico de Reuniões 1:1</h2>
+                <p className="text-xs text-slate-400">Listagem de atas gravadas e validadas no banco de dados.</p>
+              </div>
+
+              {oneOnOnes.length === 0 ? (
+                <div className="glass-card p-12 text-center rounded-2xl border border-slate-850 bg-slate-950/20 text-slate-400">
+                  <ClipboardList className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+                  <p className="text-sm font-semibold">Nenhuma reunião encontrada.</p>
+                  <p className="text-xs text-slate-500">Comece agendando uma no Copiloto.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {oneOnOnes.map(one => {
+                    const hasAudit = one.consistencyResult !== undefined && one.consistencyResult !== null;
+                    return (
+                      <div key={one.id} className="glass-card p-5 rounded-xl border border-slate-800 bg-slate-950/40 space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-bold text-sm text-slate-200">{one.collaboratorName}</h3>
+                            <div className="flex gap-2 items-center text-[11px] text-slate-500 mt-0.5">
+                              <span className="font-mono">{one.date}</span>
+                              <span>•</span>
+                              <span>{one.type}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            {hasAudit && (
+                              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                                one.consistencyResult?.consistent 
+                                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/60' 
+                                  : 'bg-amber-950 text-amber-400 border border-amber-900/60'
+                              }`}>
+                                {one.consistencyResult?.consistent ? 'Consistente' : 'Divergente'}
+                              </span>
+                            )}
+                            <span className="bg-emerald-900/30 text-emerald-400 border border-emerald-900/40 text-[10px] font-mono px-2 py-0.5 rounded flex items-center gap-1">
+                              <Check className="w-3 h-3" />
+                              Validada
                             </span>
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-slate-400 bg-slate-900/40 p-3 rounded-lg border border-slate-900 font-sans leading-relaxed">
+                          <div className="text-slate-500 font-semibold mb-1">Resumo Sintetizado:</div>
+                          {one.finalSummary || 'Sem resumo disponível.'}
+                        </div>
+
+                        {/* Separate RAW notes section */}
+                        <div className="grid md:grid-cols-2 gap-3 pt-2 text-[11px]">
+                          <div className="p-2.5 rounded bg-slate-900/30 border border-slate-900">
+                            <span className="text-slate-500 font-bold block mb-1">RAW Percepção Líder:</span>
+                            <span className="text-slate-400">{one.rawLeaderNotes || 'Sem registro.'}</span>
+                          </div>
+                          <div className="p-2.5 rounded bg-slate-900/30 border border-slate-900">
+                            <span className="text-slate-500 font-bold block mb-1">RAW Percepção Liderado:</span>
+                            <span className="text-slate-400">{one.rawCollaboratorNotes || 'Sem registro.'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ==========================================
+              PAGE: ESCALATION (CONFLICT REPORTING)
+             ========================================== */}
+          {activeSection === 'escalation' && (
+            <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-slate-100 font-title">Escalação para o RH (Clear IT)</h2>
+                <p className="text-xs text-slate-400">Acione a Gerente Priscila Bacelar caso a melhoria da liderança atinja impasses.</p>
+              </div>
+
+              {/* RN01 Disclaimer */}
+              <div className="p-4 rounded-xl border border-indigo-950 bg-indigo-950/20 text-xs text-indigo-300 space-y-1.5">
+                <p className="font-bold flex items-center gap-1">
+                  <Info className="w-4 h-4" />
+                  Regras de Negócio e Compliance Clear IT:
+                </p>
+                <p className="leading-relaxed">
+                  <strong>RN01 (Atraso 45 dias):</strong> Aberturas ordinárias exigem pelo menos uma 1:1 realizada com o colaborador nos últimos 45 dias.
+                  <br />
+                  <strong>RN02 (Desvio Ético Bypass):</strong> Casos de ética ou assédio ignoram a barreira dos 45 dias e vão imediatamente ao RH.
+                </p>
+              </div>
+
+              {/* Form escalation */}
+              <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider block">Selecionar Colaborador</label>
+                  <select 
+                    id="escColabId"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                  >
+                    {collaborators.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="bypass" className="w-4 h-4 accent-red-650" />
+                    <label htmlFor="bypass" className="text-xs text-red-400 font-semibold cursor-pointer">⚠️ Desvio Ético / Assédio (Bypass)</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="history" defaultChecked className="w-4 h-4 accent-indigo-500" />
+                    <label htmlFor="history" className="text-xs text-slate-400 cursor-pointer">Possui histórico recente</label>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider block">Descreva a Situação Crítica</label>
+                  <textarea
+                    id="escDesc"
+                    rows={4}
+                    placeholder="Descreva minuciosamente a ocorrência corporativa para mediação do RH..."
+                    className="w-full bg-slate-900 border border-slate-850 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-sans"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const escColabId = (document.getElementById('escColabId') as HTMLSelectElement).value;
+                    const isBypass = (document.getElementById('bypass') as HTMLInputElement).checked;
+                    const hasHistory = (document.getElementById('history') as HTMLInputElement).checked;
+                    const escDesc = (document.getElementById('escDesc') as HTMLTextAreaElement).value;
+
+                    if (!escDesc.trim()) {
+                      Swal.fire('Atenção', 'Descreva o conflito para podermos escalonar.', 'warning');
+                      return;
+                    }
+
+                    // Validate RN01: Check if there's a meeting in last 45 days
+                    const recentMeeting = oneOnOnes.find(o => 
+                      o.collaboratorId === escColabId && 
+                      (Date.now() - new Date(o.date).getTime()) <= 45 * 24 * 60 * 60 * 1000
+                    );
+
+                    if (!isBypass && !recentMeeting) {
+                      Swal.fire({
+                        title: 'Bloqueio de Conformidade (RN01)',
+                        text: 'Aberturas comuns exigem ao menos uma reunião 1:1 registrada com o colaborador nos últimos 45 dias. Caso seja um caso de assédio ou ética grave, marque a opção "Bypass".',
+                        icon: 'error',
+                        background: '#0f172a',
+                        color: '#cbd5e1',
+                        confirmButtonColor: '#4f46e5'
+                      });
+                      return;
+                    }
+
+                    try {
+                      const protocolNum = `SHR-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+                      const colab = collaborators.find(c => c.id === escColabId) || MOCK_COLLABORATORS[0];
+                      
+                      const { error } = await supabase.from('conflicts').insert({
+                        protocol: protocolNum,
+                        collaborator_id: colab.id,
+                        description: escDesc,
+                        date: new Date().toISOString().split('T')[0],
+                        status: 'PENDING',
+                        has_history: hasHistory,
+                        is_bypass: isBypass
+                      });
+
+                      if (error) throw error;
+
+                      Swal.fire({
+                        title: 'Escalação Enviada!',
+                        html: `Caso registrado com sucesso sob o protocolo <strong>${protocolNum}</strong>. A gerente de RH Priscila Bacelar foi notificada no painel.`,
+                        icon: 'success',
+                        background: '#0f172a',
+                        color: '#cbd5e1'
+                      });
+
+                      (document.getElementById('escDesc') as HTMLTextAreaElement).value = '';
+                      fetchDatabaseData(currentUser!);
+
+                    } catch (err: any) {
+                      Swal.fire('Erro ao enviar', err.message, 'error');
+                    }
+                  }}
+                  className="w-full bg-red-700 hover:bg-red-650 text-slate-100 text-xs font-bold py-3 rounded-xl transition-all"
+                >
+                  Abrir Protocolo de Mediação no RH
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ==========================================
+              PAGE: SIMULATOR (DISC INTERACTIVE QUIZ)
+             ========================================== */}
+          {activeSection === 'simulador' && (
+            <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-slate-100 font-title">Simulador de Diálogos DISC</h2>
+                <p className="text-xs text-slate-400">Treine suas respostas como líder escolhendo a melhor abordagem para lidar com as reações comportamentais dos seus liderados.</p>
+              </div>
+
+              {simPhase === 'intro' ? (
+                <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 text-center space-y-4">
+                  <Play className="w-12 h-12 mx-auto text-indigo-400 animate-pulse" />
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-slate-200 text-sm font-title">Iniciar Nova Simulação</h3>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                      Selecione um perfil de colaborador na lista e tente maximizar seus pontos escolhendo a atitude empática correta.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 max-w-sm mx-auto">
+                    <label className="text-xs text-slate-500 font-mono block">Escolher Colaborador de Teste:</label>
+                    <select 
+                      value={simColabId}
+                      onChange={(e) => setSimColabId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-slate-200 text-xs focus:outline-none"
+                    >
+                      <option value="colab-01">Carlos Santos (DOMINANTE)</option>
+                      <option value="colab-02">Mariana Souza (ESTÁVEL)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleStartSimulation}
+                    className="bg-indigo-650 hover:bg-indigo-550 text-slate-100 text-xs font-bold py-2.5 px-8 rounded-xl transition-all"
+                  >
+                    Iniciar Simulação de Reunião
+                  </button>
+                </div>
+              ) : (
+                <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-6">
+                  
+                  {/* Status header */}
+                  <div className="flex justify-between items-center text-xs border-b border-slate-900 pb-3">
+                    <span className="text-slate-400 font-mono">Fase: <strong>{simPhase.toUpperCase()}</strong></span>
+                    <span className="bg-indigo-950 border border-indigo-900 text-indigo-400 px-2 py-0.5 rounded font-bold font-mono">Pontos: {simScore}</span>
+                  </div>
+
+                  {simPhase !== 'feedback' ? (
+                    <div className="space-y-6">
+                      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-850 space-y-2">
+                        <div className="text-[10px] text-indigo-400 font-bold uppercase font-mono tracking-wider">Frente de Conversa:</div>
+                        <p className="text-xs text-slate-200 leading-relaxed italic">
+                          {SIMULATOR_SCENARIOS[simColabId][simPhase as 'abertura' | 'desenvolvimento' | 'fechamento'].colabSpeech}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {SIMULATOR_SCENARIOS[simColabId][simPhase as 'abertura' | 'desenvolvimento' | 'fechamento'].options.map((opt, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => handleChooseSimOption(opt)}
+                            className="w-full p-3.5 text-xs text-left bg-slate-900/20 border border-slate-900 hover:border-indigo-950 hover:bg-slate-900/50 rounded-xl text-slate-300 transition-all leading-relaxed"
+                          >
+                            {opt.text}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 text-center animate-fade-in">
+                      <div className="w-12 h-12 rounded-full bg-emerald-950 border border-emerald-500 text-emerald-400 flex items-center justify-center mx-auto text-xl font-bold">✓</div>
+                      
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-slate-200">Simulação Concluída!</h3>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                          A IA avaliou seu estilo de calibragem.
+                        </p>
+                        <div className="text-2xl font-black text-indigo-400 font-mono">{simScore} / 30 Pontos</div>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-850 max-w-md mx-auto text-xs text-slate-400 leading-relaxed text-left space-y-3">
+                        <div className="font-bold text-slate-300">Análise do Copiloto de IA:</div>
+                        <p className="italic">"{simIaFeedback}"</p>
+                        <div className="border-t border-slate-850 pt-2 space-y-2">
+                          <span className="font-bold text-[10px] text-slate-500 uppercase tracking-wider block">Histórico de Escolhas:</span>
+                          {simAnswersHistory.map((h, i) => (
+                            <div key={i} className="text-[11px] pb-1 border-b border-slate-900 last:border-0">
+                              <p><strong>{h.phase.toUpperCase()}:</strong> {h.points} pts - <span className="text-indigo-400 font-semibold">{h.discTrait}</span></p>
+                            </div>
                           ))}
                         </div>
                       </div>
 
-                      <div className="text-xs text-slate-300 leading-relaxed space-y-1">
-                        <div className="text-slate-500 font-mono uppercase text-[9px] tracking-wider">Análise da IA:</div>
-                        <p>{evaluationResult.feedback}</p>
+                      <div className="flex gap-3 max-w-sm mx-auto pt-2">
+                        <button
+                          onClick={() => setSimPhase('intro')}
+                          className="bg-slate-900 border border-slate-850 text-slate-400 text-xs font-bold py-2.5 px-5 rounded-xl flex-1"
+                        >
+                          Tentar Novamente
+                        </button>
+                        <button
+                          onClick={handleSaveSimToDb}
+                          className="bg-indigo-650 hover:bg-indigo-550 text-slate-100 text-xs font-bold py-2.5 px-5 rounded-xl flex-1"
+                        >
+                          Gravar no Supabase
+                        </button>
                       </div>
-
-                      {/* Conflict Notification Alert */}
-                      {evaluationResult.conflictWarning && (
-                        <div className="p-3 bg-amber-950/20 border border-amber-900/50 rounded-lg text-amber-400 text-xs leading-normal flex gap-2">
-                          <span className="text-base shrink-0">⚠️</span>
-                          <div>
-                            <strong>Alerta de Conflito Automático:</strong> {evaluationResult.conflictWarning}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
                 </div>
-
-              </div>
-
+              )}
             </div>
-          </section>
-        )}
+          )}
 
-        {/* SIMULADOR DE REUNIÃO 1:1 INTERATIVO (F-02 / F-04) */}
-        {activeSection === 'simulador' && currentUser?.role === 'LEADER' && (
-          <section className="space-y-6 animate-fade-in text-slate-100">
-            <header className="space-y-1">
-              <span className="text-xs bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-850 font-mono">F-02 / F-04</span>
-              <h1 className="text-2xl font-extrabold tracking-tight font-title text-slate-100">
-                Simulador Interativo de Reuniões 1:1 (Capacitação)
-              </h1>
-              <p className="text-slate-400 text-xs">
-                Treine suas abordagens comportamentais DISC em tempo real com diálogos simulados e feedback imediato da IA da Clear IT.
-              </p>
-            </header>
-
-            {/* Aviso Fixo de Responsabilidade */}
-            <div className="p-3.5 bg-amber-950/20 border border-amber-900/50 rounded-xl flex gap-3 text-xs text-amber-400 items-start">
-              <Info className="w-5 h-5 shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-amber-300">Aviso de Responsabilidade Humana (RN07/RN08):</strong> O simulador serve para capacitar a liderança com base na teoria DISC. A condução humana empática e a remoção de jargões técnicos excessivos nas 1:1s reais continuam sendo fundamentais.
+          {/* ==========================================
+              PAGE: RH PANEL (GOVERNANCE)
+             ========================================== */}
+          {activeSection === 'rh' && currentUser?.role === 'RH' && (
+            <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-slate-100 font-title">Painel de Governança e Clima do RH</h2>
+                <p className="text-xs text-slate-400">Visibilidade unificada das reuniões, taxa de conformidade e cadastro corporativo do ecossistema.</p>
               </div>
-            </div>
 
-            {simPhase === 'intro' ? (
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-slate-200">Escolha um liderado para iniciar o treinamento:</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {Object.values(SIMULATOR_SCENARIOS).map((scenario) => (
-                    <div key={scenario.collaboratorId} className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-3 flex flex-col justify-between">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="text-sm font-bold text-slate-100">{scenario.name}</h4>
-                            <p className="text-xs text-slate-500 font-mono">{scenario.role}</p>
-                          </div>
-                          <span className={`px-2 py-0.5 text-xs font-bold rounded ${
-                            scenario.disc === 'DOMINANTE' 
-                              ? 'bg-red-950/50 text-red-400 border border-red-900/35' 
-                              : scenario.disc === 'ESTAVEL' 
-                              ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/35'
-                              : scenario.disc === 'ANALITICO'
-                              ? 'bg-blue-950/50 text-blue-400 border border-blue-900/35'
-                              : 'bg-amber-950/50 text-amber-400 border border-amber-900/35'
-                          }`}>
-                            DISC: {scenario.disc}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 leading-relaxed italic bg-slate-950/30 p-2.5 rounded-lg border border-slate-900/55">
-                          "{scenario.introText}"
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleStartSimulation(scenario.collaboratorId)}
-                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-slate-100 text-xs font-bold py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 glow-btn"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>Iniciar Treinamento</span>
-                      </button>
-                    </div>
-                  ))}
+              {/* Key Metrics cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-850 space-y-1 text-center">
+                  <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Adesão Geral</div>
+                  <div className="text-2xl font-black text-indigo-400 font-mono">100%</div>
+                  <p className="text-[9px] text-slate-500">Reuniões calendas batidas</p>
+                </div>
+                <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-850 space-y-1 text-center">
+                  <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Índice eNPS Médio</div>
+                  <div className="text-2xl font-black text-cyan-400 font-mono">8.4 / 10</div>
+                  <p className="text-[9px] text-slate-500">Clima organizacional saudável</p>
+                </div>
+                <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-850 space-y-1 text-center">
+                  <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Alinhamento Médio</div>
+                  <div className="text-2xl font-black text-emerald-400 font-mono">
+                    {oneOnOnes.length > 0 
+                      ? `${Math.round(oneOnOnes.reduce((acc, curr) => acc + (curr.consistencyResult?.confidenceScore || 90), 0) / oneOnOnes.length)}%`
+                      : 'N/A'}
+                  </div>
+                  <p className="text-[9px] text-slate-500">Concordância calculada por IA</p>
+                </div>
+                <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-850 space-y-1 text-center">
+                  <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Mediações Pendentes</div>
+                  <div className="text-2xl font-black text-amber-500 font-mono">
+                    {conflicts.filter(c => c.status === 'PENDING').length}
+                  </div>
+                  <p className="text-[9px] text-slate-500">Exige intervenção de Priscila</p>
                 </div>
               </div>
-            ) : simPhase === 'feedback' ? (
-              <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-900/30 text-center space-y-6 max-w-xl mx-auto animate-fade-in">
-                <div className="space-y-2">
-                  <span className="text-2xl">🏆</span>
-                  <h3 className="text-lg font-bold text-slate-200">Simulação Concluída!</h3>
-                  <p className="text-xs text-slate-400">Resultado final do alinhamento com {SIMULATOR_SCENARIOS[simColabId].name}</p>
-                </div>
 
-                <div className="p-5 rounded-2xl bg-slate-950/40 border border-slate-900 inline-block">
-                  <div className="text-3xl font-extrabold text-indigo-400">{simScore} <span className="text-sm text-slate-500">/ 30 pts</span></div>
-                  <div className="text-xs text-slate-500 font-mono mt-1">Aproveitamento: {Math.round((simScore / 30) * 100)}%</div>
-                </div>
-
-                <div className="text-xs text-slate-300 bg-slate-900/40 p-4 rounded-xl border border-slate-850 leading-relaxed">
-                  {simScore >= 25 ? (
-                    <strong className="text-emerald-400 block mb-1">Excelente Liderança Calibrada!</strong>
-                  ) : simScore >= 15 ? (
-                    <strong className="text-amber-400 block mb-1">Bom desempenho, pontos de atenção!</strong>
-                  ) : (
-                    <strong className="text-red-400 block mb-1">Calibração Recomendada!</strong>
-                  )}
-                  {simScore >= 25 
-                    ? "Você foi extremamente assertivo ao acolher as necessidades do colaborador de acordo com o seu perfil DISC, sem usar jargões excessivos e respeitando a governança da Clear IT."
-                    : simScore >= 15
-                    ? "Suas respostas foram adequadas, mas em alguns momentos você utilizou abordagens corporativas frias ou não atendeu perfeitamente ao perfil comportamental do liderado."
-                    : "As escolhas foram rígidas, burocráticas ou desconsideraram o perfil comportamental do colaborador. Recomendamos ler o guia comportamental e refazer o teste."
-                  }
-                </div>
-
-                <div className="flex gap-3 justify-center">
-                  <button
-                    onClick={handleSaveSimulationToHistory}
-                    className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-xs font-bold text-slate-100 rounded-xl transition-all shadow-md glow-btn"
-                  >
-                    Gravar Ata no Histórico
-                  </button>
-                  <button
-                    onClick={() => setSimPhase('intro')}
-                    className="px-5 py-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-xs font-semibold text-slate-400 hover:text-slate-200 rounded-xl transition-all"
-                  >
-                    Voltar ao Início
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // Active simulator phases (abertura, desenvolvimento, fechamento)
-              <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/30 space-y-6 max-w-2xl mx-auto animate-fade-in">
+              {/* Tabs for RH: Cadastros vs Conflicts */}
+              <div className="grid md:grid-cols-12 gap-6 pt-4">
                 
-                {/* Simulator Progress Tracker */}
-                <div className="flex justify-between items-center text-xs text-slate-500 font-mono border-b border-slate-900 pb-3">
-                  <span>Fase: <strong className="text-indigo-400 uppercase">{simPhase}</strong></span>
-                  <div className="flex items-center gap-1">
-                    <span className={`w-2 h-2 rounded-full ${simPhase === 'abertura' ? 'bg-indigo-500' : 'bg-slate-800'}`} />
-                    <span className={`w-2 h-2 rounded-full ${simPhase === 'desenvolvimento' ? 'bg-indigo-500' : 'bg-slate-800'}`} />
-                    <span className={`w-2 h-2 rounded-full ${simPhase === 'fechamento' ? 'bg-indigo-500' : 'bg-slate-800'}`} />
-                  </div>
-                  <span>Pontuação Acumulada: <strong className="text-emerald-400">{simScore} pts</strong></span>
-                </div>
-
-                {/* Colab Chat Balloon */}
-                <div className="flex gap-3 items-start mr-8">
-                  <div className="w-9 h-9 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center font-bold text-slate-300 shrink-0 uppercase text-xs">
-                    {SIMULATOR_SCENARIOS[simColabId].name.substring(0, 2)}
-                  </div>
-                  <div className="p-3.5 bg-slate-950/60 border border-slate-850 rounded-xl rounded-tl-none space-y-1">
-                    <div className="text-xs text-indigo-400 font-semibold font-mono tracking-wide">
-                      {SIMULATOR_SCENARIOS[simColabId].name} · Perfil {SIMULATOR_SCENARIOS[simColabId].disc}
-                    </div>
-                    <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                      {SIMULATOR_SCENARIOS[simColabId][simPhase as 'abertura' | 'desenvolvimento' | 'fechamento'].colabSpeech}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Question choice or IA Feedback display */}
-                {simIaFeedback === '' ? (
-                  <div className="space-y-2.5 pt-2">
-                    <div className="text-xs text-slate-500 font-semibold mb-1">Escolha a resposta do Líder:</div>
-                    {SIMULATOR_SCENARIOS[simColabId][simPhase as 'abertura' | 'desenvolvimento' | 'fechamento'].options.map((opt, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleAnswerSimulation(opt)}
-                        className="w-full p-3 text-xs text-left rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-indigo-850 hover:bg-slate-900 text-slate-300 transition-all hover:text-slate-100 flex gap-2 items-start"
-                      >
-                        <span className="font-mono text-indigo-400 font-semibold">{idx + 1}.</span>
-                        <span>{opt.text}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-4 animate-fade-in">
-                    {/* Selected response preview */}
-                    <div className="flex gap-3 items-start justify-end ml-8">
-                      <div className="p-3.5 bg-indigo-950/20 border border-indigo-900/30 rounded-xl rounded-tr-none text-xs text-indigo-200 leading-relaxed">
-                        <div className="text-xs text-indigo-400 font-mono font-bold uppercase mb-0.5">Sua Resposta:</div>
-                        {simAnswersHistory[simAnswersHistory.length - 1]?.answer}
-                      </div>
-                      <div className="w-9 h-9 rounded-full bg-indigo-950 border border-indigo-800 flex items-center justify-center font-bold text-slate-100 shrink-0 text-xs">
-                        L
-                      </div>
-                    </div>
-
-                    {/* IA Smart Leading Feedback Panel */}
-                    <div className="p-4 bg-slate-950/80 border border-indigo-900/30 rounded-xl space-y-2.5">
-                      <div className="flex justify-between items-center text-xs">
-                        <div className="flex items-center gap-1.5 text-indigo-400 font-semibold font-title">
-                          <Sparkles className="w-4 h-4" />
-                          <span>Avaliação de Calibração da IA</span>
-                        </div>
-                        <span className="font-mono text-slate-500 text-xs bg-slate-900 px-2 py-0.5 rounded border border-slate-850">
-                          {simAnswersHistory[simAnswersHistory.length - 1]?.discTrait}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        {simIaFeedback}
-                      </p>
-                      <div className="text-xs text-slate-500 font-mono flex justify-between items-center pt-2 border-t border-slate-900">
-                        <span>Aproveitamento da resposta:</span>
-                        <strong className="text-emerald-400">+{simAnswersHistory[simAnswersHistory.length - 1]?.points} / 10 pts</strong>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleNextSimulationStep}
-                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-slate-100 text-xs font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 glow-btn"
-                    >
-                      <span>Avançar</span>
-                      <Play className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* 3. ESCALAÇÃO DE CONFLITOS (F-05) */}
-        {activeSection === 'escalation' && (
-          <section className="space-y-6 animate-fade-in">
-            <header className="space-y-1">
-              <span className="text-xs bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-850 font-mono">F-05</span>
-              <h1 className="text-2xl font-extrabold tracking-tight font-title text-slate-100">
-                Abertura de Chamado / Escalação de Conflitos
-              </h1>
-              <p className="text-slate-400 text-xs">
-                Acione a mediação do RH de TI para colaboradores que não apresentaram melhora mesmo após reuniões 1:1.
-              </p>
-            </header>
-
-            <div className="grid gap-6 md:grid-cols-12">
-              
-              {/* Form Escalation */}
-              <div className="md:col-span-8">
-                <form onSubmit={handleSubmitEscalation} className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-5">
-                  <h3 className="text-sm font-semibold text-slate-200">Formulário de Solicitação de Mediação</h3>
-
-                  {/* Select Colab */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-400 uppercase font-mono">Colaborador Envolvido</label>
-                    <select
-                      value={escColabId}
-                      onChange={(e) => setEscColabId(e.target.value)}
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded-xl py-2 px-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500"
-                    >
-                      {MOCK_COLLABORATORS.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Description */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-400 uppercase font-mono">Fatos Ocorridos e Justificativa</label>
-                    <textarea
-                      value={escDesc}
-                      onChange={(e) => setEscDesc(e.target.value)}
-                      rows={5}
-                      required
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500 font-sans"
-                      placeholder="Descreva as ocorrências de conflito ou queda persistente de rendimento..."
-                    />
-                  </div>
-
-                  {/* Mapped 1on1 status constraints (RN03) */}
-                  <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-900/80 flex justify-between items-center text-xs">
-                    <div className="space-y-0.5">
-                      <span className="font-semibold block text-slate-200">Histórico de 1:1 nos últimos 45 dias detectado?</span>
-                      <span className="text-xs text-slate-500">
-                        {hasHistory 
-                          ? "Sim, registros de conversa encontrados no banco de dados." 
-                          : "Não foram encontrados registros para este colaborador."}
-                      </span>
-                    </div>
-                    <div>
-                      {hasHistory ? (
-                        <span className="bg-emerald-950/50 text-emerald-400 border border-emerald-900/40 px-2 py-0.5 rounded text-xs font-bold">
-                          Regular
-                        </span>
-                      ) : (
-                        <span className="bg-red-950/50 text-red-400 border border-red-900/40 px-2 py-0.5 rounded text-xs font-bold">
-                          Bloqueado
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Ethical Bypass (RN04) */}
-                  <div className="p-4 rounded-xl border border-red-900/20 bg-red-950/5 flex items-center justify-between text-xs gap-4">
-                    <div className="space-y-0.5">
-                      <span className="font-semibold block text-red-400">Caso Grave de Assédio ou Ética? (Bypass Ético)</span>
-                      <span className="text-xs text-slate-500 leading-normal">
-                        Ativa o bypass ético que pula a validação de histórico de 1:1 nos últimos 45 dias caso a integridade do profissional esteja sob risco imediato.
-                      </span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                      <input 
-                        type="checkbox" 
-                        checked={isBypass}
-                        onChange={(e) => setIsBypass(e.target.checked)}
-                        className="sr-only peer" 
-                      />
-                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
-                    </label>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-xs font-bold text-slate-100 transition-all glow-btn"
-                  >
-                    Enviar Solicitação de Mediação ao RH
-                  </button>
-                </form>
-              </div>
-
-              {/* Sidebar Info Rules */}
-              <div className="md:col-span-4 space-y-4">
-                <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/30 text-xs space-y-3">
-                  <div className="flex gap-1.5 items-center font-bold text-slate-200">
-                    <Info className="w-4 h-4 text-indigo-400" />
-                    <span>Regras de Escalação</span>
-                  </div>
-                  <ul className="list-disc pl-4 space-y-2 text-slate-400 leading-relaxed">
-                    <li><strong>Regra dos 45 dias (RN03):</strong> O sistema exige histórico recente de alinhamentos antes de envolver a equipe corporativa de RH.</li>
-                    <li><strong>Bypass (RN04):</strong> Permite desvio automático de segurança apenas para denúncias e incidentes éticos.</li>
-                  </ul>
-                </div>
-              </div>
-
-            </div>
-          </section>
-        )}
-
-        {/* 4. PAINEL DO RH (ADMIN - F-06) */}
-        {activeSection === 'rh' && currentUser?.role === 'RH' && (
-          <section className="space-y-6 animate-fade-in">
-            <header className="space-y-1">
-              <span className="text-xs bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-850 font-mono">F-06</span>
-              <h1 className="text-2xl font-extrabold tracking-tight font-title text-slate-100">
-                Painel Analítico do RH (Admin)
-              </h1>
-              <p className="text-slate-400 text-xs">
-                Módulo restrito para Priscila Bacelar (RH). Edite os prompts da IA, gerencie conflitos abertos e exporte dados sob diretrizes da LGPD.
-              </p>
-            </header>
-
-            {/* Executive Metrics Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="glass-card p-4 rounded-2xl border border-slate-800 bg-slate-900/20 text-left">
-                <span className="text-xs text-slate-500 font-mono">Taxa de Adesão</span>
-                <div className="text-xl font-bold text-slate-100 mt-1">92.4%</div>
-                <div className="text-[10px] text-emerald-400 mt-0.5">▲ +2.1% este mês</div>
-              </div>
-              <div className="glass-card p-4 rounded-2xl border border-slate-800 bg-slate-900/20 text-left">
-                <span className="text-xs text-slate-500 font-mono">Volume 1:1s</span>
-                <div className="text-xl font-bold text-slate-100 mt-1">
-                  {storage.getOneOnOnes().length} Realizadas
-                </div>
-                <div className="text-[10px] text-indigo-400 mt-0.5">Persistido localmente</div>
-              </div>
-              <div className="glass-card p-4 rounded-2xl border border-slate-800 bg-slate-900/20 text-left">
-                <span className="text-xs text-slate-500 font-mono">Conflitos Ativos</span>
-                <div className="text-xl font-bold text-slate-100 mt-1">
-                  {conflicts.filter(c => c.status === 'PENDING' || c.status === 'IN_INVESTIGATION').length} Pendentes
-                </div>
-                <div className="text-[10px] text-amber-400 mt-0.5">Aguardando RH</div>
-              </div>
-              <div className="glass-card p-4 rounded-2xl border border-slate-800 bg-slate-900/20 text-left">
-                <span className="text-xs text-slate-500 font-mono">Índice eNPS</span>
-                <div className="text-xl font-bold text-slate-100 mt-1">78 pts</div>
-                <div className="text-[10px] text-emerald-400 mt-0.5">Zona de Excelência</div>
-              </div>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-12">
-              
-              {/* Conflicts List & Resolution */}
-              <div className="md:col-span-8 space-y-6">
-                
-                <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-4">
-                  <h3 className="text-sm font-bold text-slate-200">Chamados de Conflitos Escalas</h3>
+                {/* Left: Administrative registrations */}
+                <div className="md:col-span-6 space-y-6">
                   
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-800 text-slate-500 font-mono">
-                          <th className="py-2.5 px-3">Protocolo</th>
-                          <th className="py-2.5 px-3">Colaborador</th>
-                          <th className="py-2.5 px-3">Data</th>
-                          <th className="py-2.5 px-3">Status</th>
-                          <th className="py-2.5 px-3 text-right">Ação</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {conflicts.map(c => (
-                          <tr key={c.id} className="border-b border-slate-850/60 hover:bg-slate-900/30 text-slate-300">
-                            <td className="py-3 px-3 font-mono font-bold text-indigo-400">{c.protocol}</td>
-                            <td className="py-3 px-3">{c.collaboratorName}</td>
-                            <td className="py-3 px-3 text-slate-500 font-mono">{c.date}</td>
-                            <td className="py-3 px-3">
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                                c.status === 'PENDING' 
-                                  ? 'bg-amber-950 text-amber-400 border border-amber-900/40' 
-                                  : c.status === 'IN_INVESTIGATION' 
-                                  ? 'bg-cyan-950 text-cyan-400 border border-cyan-900/40' 
-                                  : c.status === 'RESOLVED'
-                                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/40'
-                                  : 'bg-red-950 text-red-400 border border-red-900/40'
-                              }`}>
-                                {c.status === 'PENDING' 
-                                  ? 'Pendente' 
-                                  : c.status === 'IN_INVESTIGATION' 
-                                  ? 'Em Mediação' 
-                                  : c.status === 'RESOLVED'
-                                  ? 'Resolvido'
-                                  : 'Não Resolvido / Encaminhado'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 text-right">
-                              <button
-                                onClick={() => handleSelectConflict(c)}
-                                className="text-[10px] font-bold text-slate-400 hover:text-indigo-400 underline"
-                              >
-                                Mediar
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Mediation Notes Form */}
-                {selectedConflictId && (
-                  (() => {
-                    const activeConf = conflicts.find(c => c.id === selectedConflictId)!;
-                    return (
-                      <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/30 space-y-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-200">Mediação do Chamado {activeConf.protocol}</h4>
-                            <p className="text-[10px] text-slate-500 mt-0.5">Liderado: {activeConf.collaboratorName}</p>
-                          </div>
-                          <button onClick={() => setSelectedConflictId(null)} className="text-slate-500 font-bold">&times;</button>
-                        </div>
-
-                        <div className="text-xs text-slate-400 bg-slate-950/40 p-3 rounded-lg border border-slate-900 max-h-[100px] overflow-y-auto">
-                          <strong>Descrição do Líder:</strong> "{activeConf.description}"
-                        </div>
-
+                  {/* Register Leader */}
+                  <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
+                    <h3 className="font-bold text-slate-200 text-sm flex items-center gap-1.5">
+                      <PlusCircle className="w-4 h-4 text-indigo-400" />
+                      Cadastrar Novo Líder
+                    </h3>
+                    <form onSubmit={handleRHRegisterLeader} className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-semibold text-slate-400 uppercase font-mono">Notas de Resolução / Mediação</label>
-                          <textarea
-                            value={mediationNotes}
-                            onChange={(e) => setMediationNotes(e.target.value)}
-                            rows={3}
-                            className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500"
-                            placeholder="Escreva as notas da conversa com o líder..."
+                          <label className="text-[10px] text-slate-400 font-mono uppercase">Nome Completo</label>
+                          <input 
+                            type="text" 
+                            required
+                            value={newLeaderName}
+                            onChange={(e) => setNewLeaderName(e.target.value)}
+                            placeholder="Ex: Carlos Abreu"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
                           />
                         </div>
-
-                        <div className="flex gap-2.5">
-                          <button
-                            onClick={() => handleUpdateConflictStatus(activeConf.id, 'IN_INVESTIGATION')}
-                            className="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-300 rounded-xl text-xs font-semibold"
-                          >
-                            Marcar Em Mediação
-                          </button>
-                          <button
-                            onClick={() => handleUpdateConflictStatus(activeConf.id, 'RESOLVED')}
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-100 rounded-xl text-xs font-semibold"
-                          >
-                            Resolver Conflito
-                          </button>
-                          <button
-                            onClick={() => handleUpdateConflictStatus(activeConf.id, 'UNRESOLVED')}
-                            className="px-4 py-2 bg-red-950/40 border border-red-900/60 hover:bg-red-900/20 text-red-400 rounded-xl text-xs font-semibold"
-                          >
-                            Não Resolvido / Encaminhar
-                          </button>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400 font-mono uppercase">Email Corporativo</label>
+                          <input 
+                            type="email" 
+                            required
+                            value={newLeaderEmail}
+                            onChange={(e) => setNewLeaderEmail(e.target.value)}
+                            placeholder="ex: lider.carlos@clearit.com"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                          />
                         </div>
                       </div>
-                    );
-                  })()
-                )}
-
-                {/* Simulated Emails Log (F-07) */}
-                <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-4 text-xs">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-850">
-                    <h3 className="text-sm font-bold text-slate-200">Disparos de E-mails Simulados (Auditoria)</h3>
-                    <span className="text-xs text-slate-500 font-mono">{simulatedEmails.length} disparos</span>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 font-mono uppercase">Senha Padrão (Mín. 6 Caracteres)</label>
+                        <input 
+                          type="password" 
+                          required
+                          value={newLeaderPassword}
+                          onChange={(e) => setNewLeaderPassword(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <button 
+                        type="submit" 
+                        className="w-full bg-indigo-650 hover:bg-indigo-550 text-slate-100 text-xs font-bold py-2 rounded-lg transition-all"
+                      >
+                        Registrar Líder no Supabase
+                      </button>
+                    </form>
                   </div>
-                  
-                  {simulatedEmails.length === 0 ? (
-                    <p className="text-xs text-slate-500 italic py-2 text-center">Nenhum e-mail simulado disparado até o momento.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="overflow-x-auto max-h-[180px] overflow-y-auto">
-                        <table className="w-full text-xs text-left border-collapse">
+
+                  {/* Register Collaborator */}
+                  <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
+                    <h3 className="font-bold text-slate-200 text-sm flex items-center gap-1.5">
+                      <PlusCircle className="w-4 h-4 text-cyan-400" />
+                      Cadastrar Novo Colaborador (Liderado)
+                    </h3>
+                    <form onSubmit={handleRHRegisterCollaborator} className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400 font-mono uppercase">Nome Completo</label>
+                          <input 
+                            type="text" 
+                            required
+                            value={newColabName}
+                            onChange={(e) => setNewColabName(e.target.value)}
+                            placeholder="Ex: João da Silva"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400 font-mono uppercase">Cargo / Função</label>
+                          <input 
+                            type="text" 
+                            required
+                            value={newColabRole}
+                            onChange={(e) => setNewColabRole(e.target.value)}
+                            placeholder="Ex: Dev Back-end Pleno"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400 font-mono uppercase">DISC</label>
+                          <select 
+                            value={newColabDisc} 
+                            onChange={(e) => setNewColabDisc(e.target.value as any)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none"
+                          >
+                            <option value="DOMINANTE">DOMINANTE</option>
+                            <option value="ESTAVEL">ESTAVEL</option>
+                            <option value="ANALITICO">ANALITICO</option>
+                            <option value="INFLUENTE">INFLUENTE</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400 font-mono uppercase">Nível</label>
+                          <select 
+                            value={newColabLevel} 
+                            onChange={(e) => setNewColabLevel(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none"
+                          >
+                            <option value="L1">L1 (Júnior)</option>
+                            <option value="L2">L2 (Pleno)</option>
+                            <option value="L3">L3 (Sênior)</option>
+                            <option value="L4">L4 (Principal)</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400 font-mono uppercase">Líder Relacionado</label>
+                          <select 
+                            value={newColabLeaderId} 
+                            onChange={(e) => setNewColabLeaderId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none"
+                          >
+                            <option value="">Nenhum</option>
+                            {profiles.filter(p => p.profile !== 'PENDENTE' && p.profile !== 'ADMINISTRADOR').map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <button 
+                        type="submit" 
+                        className="w-full bg-cyan-650 hover:bg-cyan-550 text-slate-100 text-xs font-bold py-2 rounded-lg transition-all"
+                      >
+                        Registrar Colaborador no Supabase
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Active Leaders List */}
+                  <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
+                    <h3 className="font-bold text-slate-200 text-sm flex items-center gap-1.5 border-b border-slate-900 pb-2">
+                      <UserCheck className="w-4.5 h-4.5 text-indigo-400" />
+                      Gestores Cadastrados ({profiles.filter(p => p.profile !== 'ADMINISTRADOR').length})
+                    </h3>
+                    
+                    {profiles.filter(p => p.profile !== 'ADMINISTRADOR').length === 0 ? (
+                      <p className="text-xs text-slate-500 italic">Nenhum gestor cadastrado.</p>
+                    ) : (
+                      <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                        <table className="w-full text-xs text-slate-300 text-left border-collapse">
                           <thead>
-                            <tr className="border-b border-slate-800 text-slate-500 font-mono">
-                              <th className="py-2 px-3">Destinatário</th>
-                              <th className="py-2 px-3">Assunto</th>
-                              <th className="py-2 px-3 text-right">Ação</th>
+                            <tr className="border-b border-slate-900 text-slate-500 font-mono uppercase text-[9px]">
+                              <th className="py-2">Nome</th>
+                              <th className="py-2">Perfil</th>
+                              <th className="py-2 text-right">Ação</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {simulatedEmails.map((email) => (
-                              <tr key={email.id} className="border-b border-slate-850/60 hover:bg-slate-900/30 text-slate-300">
-                                <td className="py-2.5 px-3 truncate max-w-[140px]" title={email.to}>{email.to}</td>
-                                <td className="py-2.5 px-3 truncate max-w-[180px]" title={email.subject}>{email.subject}</td>
-                                <td className="py-2.5 px-3 text-right">
-                                  <button
-                                    onClick={() => setSelectedEmailId(selectedEmailId === email.id ? null : email.id)}
-                                    className="text-[10px] font-bold text-slate-400 hover:text-indigo-400 underline"
-                                  >
-                                    {selectedEmailId === email.id ? 'Fechar' : 'Visualizar'}
-                                  </button>
+                            {profiles.filter(p => p.profile !== 'ADMINISTRADOR').map(p => (
+                              <tr key={p.id} className="border-b border-slate-900/60 hover:bg-slate-900/10">
+                                <td className="py-2 font-medium">
+                                  <div>{p.name}</div>
+                                  <div className="text-[10px] text-slate-500">{p.email}</div>
+                                </td>
+                                <td className="py-2">
+                                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                                    p.profile === 'ADMINISTRADOR'
+                                      ? 'bg-cyan-950/50 text-cyan-400 border border-cyan-900/40 font-bold'
+                                      : p.profile === 'PENDENTE' 
+                                      ? 'bg-amber-950/50 text-amber-400 border border-amber-900/40' 
+                                      : 'bg-indigo-950/50 text-indigo-300 border border-indigo-900/40'
+                                  }`}>
+                                    {p.profile}
+                                  </span>
+                                </td>
+                                <td className="py-2 text-right">
+                                  {p.email !== 'rh.priscila@clearit.com.br' ? (
+                                    <button
+                                      onClick={() => handleDeleteLeader(p.id as string, p.name)}
+                                      className="text-[10px] text-red-400 hover:text-red-300 hover:underline font-bold px-2 py-1 transition-all"
+                                    >
+                                      Deletar
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-600 italic">RH Admin</span>
+                                  )}
                                 </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
+                    )}
+                  </div>
 
-                      {selectedEmailId && (
-                        (() => {
-                          const activeEmail = simulatedEmails.find(e => e.id === selectedEmailId);
-                          if (!activeEmail) return null;
-                          return (
-                            <div className="p-3.5 bg-slate-950/80 border border-slate-850 rounded-xl space-y-2 text-xs animate-fade-in">
-                              <div className="flex justify-between items-center text-slate-400 border-b border-slate-900 pb-1.5 font-mono">
-                                <span>Preview do E-mail Enviado</span>
-                                <span className="text-[10px]">{new Date(activeEmail.date).toLocaleString()}</span>
+                </div>
+
+                {/* Right: Conflict Alerts & Auditing */}
+                <div className="md:col-span-6 space-y-6">
+                  <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
+                    <h3 className="font-bold text-slate-200 text-sm flex items-center gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-amber-500" />
+                      Alertas de Atrito e Mediações de Conflito
+                    </h3>
+                    
+                    {conflicts.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic">Nenhum atrito reportado pela IA ou pelos Líderes.</p>
+                    ) : (
+                      <div className="space-y-3 max-h-[380px] overflow-y-auto">
+                        {conflicts.map(conf => (
+                          <div key={conf.id} className="p-3 bg-slate-900/60 rounded-xl border border-slate-850 space-y-2">
+                            <div className="flex justify-between items-start text-xs">
+                              <div>
+                                <strong className="text-slate-200">{conf.collaboratorName}</strong>
+                                <div className="text-[10px] text-slate-500 font-mono mt-0.5">Protocolo: {conf.protocol}</div>
                               </div>
-                              <div className="space-y-0.5 font-mono text-[11px] text-slate-400">
-                                <div><strong>De:</strong> {activeEmail.from}</div>
-                                <div><strong>Para:</strong> {activeEmail.to}</div>
-                                <div><strong>Assunto:</strong> {activeEmail.subject}</div>
-                              </div>
-                              <pre className="mt-2 text-xs text-slate-300 font-sans whitespace-pre-wrap max-h-[140px] overflow-y-auto bg-slate-900/40 p-3 rounded-lg border border-slate-900 leading-relaxed">
-                                {activeEmail.body}
-                              </pre>
+                              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                conf.status === 'PENDING' 
+                                  ? 'bg-red-950 text-red-400 border border-red-900/60' 
+                                  : 'bg-emerald-950 text-emerald-400 border border-emerald-900/60'
+                              }`}>
+                                {conf.status === 'PENDING' ? 'Pendente' : 'Solucionado'}
+                              </span>
                             </div>
-                          );
-                        })()
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Prompt Tuning Interface */}
-                <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/20 space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-850">
-                    <h3 className="text-sm font-bold text-slate-200">Fine-Tuning de Prompts de Sistema (RH / Admin)</h3>
-                    <button
-                      onClick={handleSavePrompts}
-                      className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-slate-100 text-xs font-semibold transition-all"
-                    >
-                      Salvar Tuning
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-slate-400 uppercase font-mono">System Prompt principal (Geração de Pautas)</label>
-                      <textarea
-                        value={mainPrompt}
-                        onChange={(e) => setMainPrompt(e.target.value)}
-                        rows={5}
-                        className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500 font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-slate-400 uppercase font-mono">System Prompt da conversa em tempo real</label>
-                      <textarea
-                        value={realTimePrompt}
-                        onChange={(e) => setRealTimePrompt(e.target.value)}
-                        rows={4}
-                        className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-slate-300 text-xs focus:outline-none focus:border-indigo-500 font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* LGPD Secure Export Simulator */}
-              <div className="md:col-span-4">
-                <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/30 space-y-4">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-200 text-xs">
-                    <Sliders className="w-4 h-4 text-indigo-400" />
-                    <span>Conformidade de Transmissão (LGPD)</span>
-                  </div>
-                  
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Antes de exportar qualquer dado de conflito para ferramentas externas de auditoria, execute o algoritmo de pseudonimização de nomes e encriptação AES-256-GCM.
-                  </p>
-
-                  <button
-                    onClick={handleSimulateLgpdExport}
-                    className="w-full bg-slate-900 border border-slate-850 hover:bg-slate-850 text-slate-300 text-xs font-semibold py-2 rounded-xl transition-all"
-                  >
-                    Simular Exportação Higienizada
-                  </button>
-
-                  {exportPayload && (
-                    <div className="space-y-2">
-                      <div className="text-[10px] font-mono text-slate-500">Payload Pseudonimizado (JSON):</div>
-                      <pre className="text-[9px] font-mono text-slate-400 leading-normal p-3 rounded-lg bg-slate-950 border border-slate-900 max-h-[160px] overflow-y-auto whitespace-pre-wrap">
-                        {exportPayload}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-
-                {/* Sincronização Corporativa (Clear IT DB) */}
-                <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/30 space-y-4 mt-4">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-200 text-xs">
-                    <Database className="w-4 h-4 text-indigo-400" />
-                    <span>Sincronismo Corporativo (Clear IT DB)</span>
-                  </div>
-                  
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Sincronize as atas de reuniões 1:1 ativas do localStorage para o banco de dados interno homologado.
-                  </p>
-
-                  <button
-                    onClick={handleSyncDatabase}
-                    disabled={syncing}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-slate-100 text-xs font-semibold py-2 rounded-xl transition-all glow-btn"
-                  >
-                    {syncing ? 'Sincronizando...' : 'Enviar Dados para o Banco'}
-                  </button>
-
-                  {syncLogs.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-[10px] font-mono text-slate-500">Console de Transmissão:</div>
-                      <div className="text-[9px] font-mono text-emerald-400 leading-normal p-3 rounded-lg bg-slate-950 border border-slate-900 max-h-[140px] overflow-y-auto space-y-1">
-                        {syncLogs.map((log, index) => (
-                          <div key={index}>{log}</div>
+                            <p className="text-xs text-slate-400 leading-relaxed font-sans">{conf.description}</p>
+                            
+                            {conf.status === 'PENDING' ? (
+                              <button
+                                onClick={async () => {
+                                  const { value: notes } = await Swal.fire({
+                                    title: 'Resolver Conflito',
+                                    input: 'textarea',
+                                    inputLabel: 'Ações tomadas pelo RH (Priscila):',
+                                    inputPlaceholder: 'Descreva a resolução...',
+                                    inputAttributes: { 'aria-label': 'Resolução' },
+                                    showCancelButton: true,
+                                    background: '#0f172a',
+                                    color: '#cbd5e1',
+                                    confirmButtonColor: '#4f46e5'
+                                  });
+                                  if (notes) {
+                                    handleResolveConflict(conf.id, notes);
+                                  }
+                                }}
+                                className="text-[10px] bg-indigo-900/40 hover:bg-indigo-900 border border-indigo-800 text-indigo-300 font-bold px-2 py-1 rounded"
+                              >
+                                Resolver e Arquivar
+                              </button>
+                            ) : (
+                              <div className="text-[10px] text-slate-500 font-sans border-t border-slate-900/60 pt-1">
+                                <strong>Resolução:</strong> {conf.notes}
+                              </div>
+                            )}
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+
+                  {/* Active Collaborators List */}
+                  <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-4">
+                    <h3 className="font-bold text-slate-200 text-sm flex items-center gap-1.5 border-b border-slate-900 pb-2">
+                      <User className="w-4.5 h-4.5 text-cyan-400" />
+                      Liderados Cadastrados ({collaborators.length})
+                    </h3>
+                    
+                    {collaborators.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic">Nenhum colaborador cadastrado.</p>
+                    ) : (
+                      <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                        <table className="w-full text-xs text-slate-300 text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-900 text-slate-500 font-mono uppercase text-[9px]">
+                              <th className="py-2">Nome</th>
+                              <th className="py-2">Cargo / DISC / Nível</th>
+                              <th className="py-2 text-right">Ação</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {collaborators.map(colab => {
+                              const matchedLeader = profiles.find(p => p.id === colab.leaderId);
+                              return (
+                                <tr key={colab.id} className="border-b border-slate-900/60 hover:bg-slate-900/10">
+                                  <td className="py-2 font-medium">
+                                    <div>{colab.name}</div>
+                                    <div className="text-[10px] text-slate-500">
+                                      Líder: {matchedLeader ? matchedLeader.name : 'Nenhum'}
+                                    </div>
+                                  </td>
+                                  <td className="py-2">
+                                    <div className="text-slate-400">{colab.role}</div>
+                                    <div className="flex gap-1.5 mt-0.5">
+                                      <span className="text-[9px] bg-slate-900 text-cyan-400 px-1 py-0.2 rounded font-mono font-bold">{colab.disc}</span>
+                                      <span className="text-[9px] bg-slate-900 text-indigo-400 px-1 py-0.2 rounded font-mono font-bold">{colab.level}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2 text-right">
+                                    <button
+                                      onClick={() => handleDeleteCollaborator(colab.id as string, colab.name)}
+                                      className="text-[10px] text-red-400 hover:text-red-300 hover:underline font-bold px-2 py-1 transition-all"
+                                    >
+                                      Deletar
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
                 </div>
 
               </div>
-
             </div>
-          </section>
-        )}
-
-
+          )}
 
         </main>
       </div>
-
     </div>
   );
 }
