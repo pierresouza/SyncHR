@@ -50,7 +50,7 @@ Diretriz de Segurança:
     
     Retorne APENAS o JSON puro. Não inclua blocos de código markdown.`;
 
-    const aiOutput = await callGemini(systemInstruction, prompt);
+    const aiOutput = await callGemini(systemInstruction, prompt, true);
 
     let parsedResult;
     try {

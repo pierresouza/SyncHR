@@ -248,6 +248,11 @@ export default function DashboardPage() {
   const [collaboratorLevel, setCollaboratorLevel] = useState('L2');
   const [selectedAtaTemplate, setSelectedAtaTemplate] = useState('rotineira');
   const [meetingType, setMeetingType] = useState('Quinzenal Rotineira');
+  const [meetingDate, setMeetingDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [meetingTime, setMeetingTime] = useState(() => {
+    const now = new Date();
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  });
   const [impedimentContext, setImpedimentContext] = useState('Alinhamento de tarefas ordinárias e checagem de clima.');
 
   const [generatedScript, setGeneratedScript] = useState('');
@@ -755,51 +760,71 @@ export default function DashboardPage() {
         setDeadlineSlider(hasDeadlineMod ? 85 : 50);
       }
 
-      // If generate meet is checked, call Calendar utility and send invite email
+      // If generate meet is checked, try creating a Google Meet event or fallback to Jitsi Meet
       if (shouldGenerateMeet) {
         try {
-          const { createGoogleMeetEvent } = await import('@/lib/google-calendar');
-          const meetResult = await createGoogleMeetEvent({
-            summary: `1:1 SyncHR - ${leaderProfile?.name || 'Gestor'} & ${activeColab.name}`,
-            description: `Alinhamento 1:1 de pauta com modelo ${selectedAtaTemplate.toUpperCase()}. Contexto: ${impedimentContext}`,
-            startDateTime: new Date().toISOString(),
-            endDateTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-            attendeeEmail: activeColab.email || 'liderado@clearit.com.br'
-          });
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData?.session?.provider_token || undefined;
 
-          if (meetResult && meetResult.meetLink) {
-            setMeetLink(meetResult.meetLink);
+          let meetLinkUrl = '';
+          let isGoogleMeet = false;
 
-            if (activeColab.email) {
-              const inviteHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
-                  <h2 style="color: #4f46e5; margin-top: 0;">SyncHR - Convite para Reunião 1:1</h2>
-                  <p>Olá <strong>${activeColab.name}</strong>,</p>
-                  <p>Seu gestor <strong>${leaderProfile?.name || 'Gestor'}</strong> agendou um alinhamento individual 1:1 com você.</p>
-                  <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
-                    <p style="margin: 5px 0;"><strong>Modelo da ATA:</strong> ${selectedAtaTemplate.toUpperCase()}</p>
-                    <p style="margin: 5px 0;"><strong>Data / Hora:</strong> Hoje (agora)</p>
-                    <p style="margin: 10px 0 5px 0;"><strong>Link do Google Meet:</strong> <a href="${meetResult.meetLink}" target="_blank" style="color: #4f46e5; font-weight: bold; text-decoration: underline;">Entrar na Reunião</a></p>
-                  </div>
-                  <p>Por favor, acesse o link no horário combinado. Nos vemos lá!</p>
-                  <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
-                  <p style="font-size: 11px; color: #64748b; margin-bottom: 0;">Este é um e-mail automático gerado pelo ecossistema SyncHR Smart Leading da Clear IT.</p>
+          const formattedDate = meetingDate.split('-').reverse().join('/');
+          const formattedDateTime = `${formattedDate} às ${meetingTime}`;
+
+          if (accessToken) {
+            const { createGoogleMeetEvent } = await import('@/lib/google-calendar');
+            const startISO = new Date(`${meetingDate}T${meetingTime}:00`).toISOString();
+            const endISO = new Date(new Date(`${meetingDate}T${meetingTime}:00`).getTime() + 60 * 60 * 1000).toISOString();
+
+            const meetResult = await createGoogleMeetEvent({
+              summary: `1:1 SyncHR - ${leaderProfile?.name || 'Gestor'} & ${activeColab.name}`,
+              description: `Alinhamento 1:1 de pauta com modelo ${selectedAtaTemplate.toUpperCase()}. Contexto: ${impedimentContext}`,
+              startDateTime: startISO,
+              endDateTime: endISO,
+              attendeeEmail: activeColab.email || 'liderado@clearit.com.br',
+              accessToken
+            });
+            meetLinkUrl = meetResult.meetLink;
+            isGoogleMeet = !meetResult.simulated;
+          } else {
+            // Fallback para Jitsi Meet para termos uma chamada funcional instantânea sem login do Google
+            const roomName = `SyncHR-${activeColab.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, '-')}-${Math.floor(1000 + Math.random() * 9000)}`;
+            meetLinkUrl = `https://meet.jit.si/${roomName}`;
+          }
+
+          setMeetLink(meetLinkUrl);
+
+          if (activeColab.email) {
+            const inviteHtml = `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff; color: #1e293b;">
+                <h2 style="color: #4f46e5; margin-top: 0;">SyncHR - Convite para Reunião 1:1</h2>
+                <p>Olá <strong>${activeColab.name}</strong>,</p>
+                <p>Seu gestor <strong>${leaderProfile?.name || 'Gestor'}</strong> agendou um alinhamento individual 1:1 com você.</p>
+                <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
+                  <p style="margin: 5px 0;"><strong>Modelo da ATA:</strong> ${selectedAtaTemplate.toUpperCase()}</p>
+                  <p style="margin: 5px 0;"><strong>Data / Hora:</strong> ${formattedDateTime}</p>
+                  <p style="margin: 10px 0 5px 0;"><strong>Link da Videoconferência (${isGoogleMeet ? 'Google Meet' : 'Jitsi Meet'}):</strong> <a href="${meetLinkUrl}" target="_blank" style="color: #4f46e5; font-weight: bold; text-decoration: underline;">Entrar na Reunião</a></p>
                 </div>
-              `;
+                ${!isGoogleMeet ? `<p style="font-size: 12px; color: #b45309; background-color: #fffbeb; padding: 10px; border-radius: 6px; border: 1px solid #fef3c7;">⚠️ <strong>Nota sobre Transcrição:</strong> Esta reunião ocorrerá no Jitsi Meet. Para obter a captura automática de transcrição via e-mail pelo SyncHR, o gestor precisa estar autenticado com a conta Google corporativa no sistema.</p>` : ''}
+                <p>Por favor, acesse o link no horário combinado. Nos vemos lá!</p>
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+                <p style="font-size: 11px; color: #64748b; margin-bottom: 0;">Este é um e-mail automático gerado pelo ecossistema SyncHR Smart Leading da Clear IT.</p>
+              </div>
+            `;
 
-              await fetch('/api/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  to: activeColab.email,
-                  subject: `Convite 1:1: ${leaderProfile?.name || 'Gestor'} & ${activeColab.name}`,
-                  html: inviteHtml
-                })
-              });
-            }
+            await fetch('/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: activeColab.email,
+                subject: `Convite 1:1: ${leaderProfile?.name || 'Gestor'} & ${activeColab.name} (${formattedDateTime})`,
+                html: inviteHtml
+              })
+            });
           }
         } catch (calendarErr) {
-          console.error('[Google Calendar/Resend integration error]:', calendarErr);
+          console.error('[Meet generation or email dispatch error]:', calendarErr);
         }
       }
 
@@ -1903,7 +1928,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between p-3.5 rounded-xl border border-indigo-900 bg-indigo-950/20 text-xs">
                   <div className="flex items-center gap-2 text-indigo-300">
                     <Video className="w-4.5 h-4.5 text-indigo-400" />
-                    <span>Reunião no Google Meet criada: <a href={meetLink} target="_blank" rel="noopener noreferrer" className="underline font-bold text-indigo-400">{meetLink}</a></span>
+                    <span>Videoconferência (Jitsi Meet) criada: <a href={meetLink} target="_blank" rel="noopener noreferrer" className="underline font-bold text-indigo-400">{meetLink}</a></span>
                   </div>
                   <a
                     href={meetLink}
@@ -1986,6 +2011,27 @@ export default function DashboardPage() {
                       />
                     </div>
 
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Data da Reunião</label>
+                        <input
+                          type="date"
+                          value={meetingDate}
+                          onChange={(e) => setMeetingDate(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-400 font-semibold font-mono uppercase tracking-wider">Horário da Reunião</label>
+                        <input
+                          type="time"
+                          value={meetingTime}
+                          onChange={(e) => setMeetingTime(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2.5 px-3 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
+
                     <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800">
                       <input
                         type="checkbox"
@@ -1995,7 +2041,7 @@ export default function DashboardPage() {
                         className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                       />
                       <label htmlFor="googleMeetToggle" className="text-xs text-slate-300 font-semibold cursor-pointer select-none">
-                        Agendar chamada no Google Meet & enviar e-mail convite via Resend
+                        Agendar videoconferência (Jitsi Meet) & enviar convite por e-mail
                       </label>
                     </div>
 

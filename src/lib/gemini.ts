@@ -1,10 +1,19 @@
-export async function callGemini(systemInstruction: string, prompt: string): Promise<string> {
+export async function callGemini(systemInstruction: string, prompt: string, isJson?: boolean): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY não configurada no servidor. Por favor, adicione-a nas variáveis de ambiente do seu provedor de deploy.');
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  const generationConfig: any = {
+    temperature: 0.4,
+    maxOutputTokens: 1500,
+  };
+
+  if (isJson) {
+    generationConfig.responseMimeType = "application/json";
+  }
 
   const response = await fetch(url, {
     method: 'POST',
@@ -18,10 +27,7 @@ export async function callGemini(systemInstruction: string, prompt: string): Pro
       contents: [{
         parts: [{ text: prompt }]
       }],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 1500,
-      }
+      generationConfig
     })
   });
 
