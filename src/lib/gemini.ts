@@ -8,7 +8,7 @@ export async function callGemini(systemInstruction: string, prompt: string, isJs
 
   const generationConfig: any = {
     temperature: 0.4,
-    maxOutputTokens: 1500,
+    maxOutputTokens: 3000,
   };
 
   if (isJson) {

@@ -55,23 +55,78 @@ Caso o contexto indique atrasos, use o "deliveryAdjustment" para sugerir ajustes
     // Parse JSON
     let parsedResult;
     try {
-      // Clean possible wrapper blocks
-      const cleanJson = aiOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+      let cleanJson = aiOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      // Attempt to extract the JSON object substring
+      const firstBrace = cleanJson.indexOf('{');
+      const lastBrace = cleanJson.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+      }
+      
       parsedResult = JSON.parse(cleanJson);
     } catch (parseError) {
-      console.warn("Falha ao parsear JSON gerado pelo Gemini. Usando fallback estruturado.", parseError);
-      parsedResult = {
-        script: aiOutput || `### Roteiro de 1:1\n\n- Foco em: ${meetingType}\n- Apoio para liderado ${collaboratorDisc}\n\n${aiOutput}`,
-        kanbanTasks: [
-          { id: '1', title: 'Alinhar blockers de deploy', status: 'todo' },
-          { id: '2', title: 'Definir plano de ação para a Sprint', status: 'todo' }
-        ],
-        deliveryAdjustment: {
-          proposedDeadline: 'Manter cronograma atual',
-          scopeChange: 'Nenhuma alteração sugerida',
-          rationale: 'Contexto rotineiro de acompanhamento.'
+      console.warn("Falha ao parsear JSON gerado pelo Gemini. Tentando sanitização secundária.", parseError);
+      try {
+        let cleanJson = aiOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+        const firstBrace = cleanJson.indexOf('{');
+        const lastBrace = cleanJson.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
         }
-      };
+        
+        // Clean newlines inside string properties
+        let insideString = false;
+        let escaped = false;
+        let sanitizedJson = "";
+        for (let i = 0; i < cleanJson.length; i++) {
+          const char = cleanJson[i];
+          if (char === '"' && !escaped) {
+            insideString = !insideString;
+            sanitizedJson += char;
+          } else if (char === '\\' && !escaped) {
+            escaped = true;
+            sanitizedJson += char;
+          } else {
+            escaped = false;
+            if (insideString && (char === '\n' || char === '\r')) {
+              sanitizedJson += '\\n';
+            } else {
+              sanitizedJson += char;
+            }
+          }
+        }
+        parsedResult = JSON.parse(sanitizedJson);
+      } catch (fallbackError) {
+        console.warn("Falha na sanitização secundária. Usando fallback regex e estruturado.", fallbackError);
+        
+        // Try regex to extract script field content
+        const scriptMatch = aiOutput.match(/"script"\s*:\s*"([\s\S]*?)"\s*(?:,|\})/i) || 
+                            aiOutput.match(/"script"\s*:\s*"([\s\S]*?)"/i);
+        let extractedScript = "";
+        if (scriptMatch) {
+          extractedScript = scriptMatch[1]
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\');
+        } else {
+          // If regex doesn't match a clean string, try to clean the raw output
+          extractedScript = aiOutput.replace(/[{}"']/g, '').trim();
+        }
+
+        parsedResult = {
+          script: extractedScript || `### Roteiro de 1:1\n\n- Foco em: ${meetingType}\n- Apoio para liderado ${collaboratorDisc}\n\n${aiOutput}`,
+          kanbanTasks: [
+            { id: '1', title: 'Alinhar blockers de deploy', status: 'todo' },
+            { id: '2', title: 'Definir plano de ação para a Sprint', status: 'todo' }
+          ],
+          deliveryAdjustment: {
+            proposedDeadline: 'Manter cronograma atual',
+            scopeChange: 'Nenhuma alteração sugerida',
+            rationale: 'Contexto rotineiro de acompanhamento.'
+          }
+        };
+      }
     }
 
     return NextResponse.json(parsedResult);
