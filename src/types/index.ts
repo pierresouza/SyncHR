@@ -1,6 +1,6 @@
 export type LeaderProfileType = 'TECNICO' | 'TRANSICAO' | 'ENGAJADO' | 'PENDENTE' | 'ADMINISTRADOR';
-export type DiscProfileType = 'DOMINANTE' | 'ESTAVEL' | 'ANALITICO' | 'INFLUENTE';
-export type UserRole = 'LEADER' | 'RH';
+export type DiscProfileType = 'DOMINANTE' | 'ESTAVEL' | 'ANALITICO' | 'INFLUENTE' | 'PENDENTE';
+export type UserRole = 'LEADER' | 'RH' | 'COLLABORATOR';
 export type ConflictStatus = 'PENDING' | 'IN_INVESTIGATION' | 'RESOLVED' | 'UNRESOLVED';
 
 export interface UserSession {

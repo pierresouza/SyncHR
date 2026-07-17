@@ -25,6 +25,15 @@ async function run() {
     await client.query(sql);
     console.log('Tabelas criadas com sucesso!');
 
+    const seedPath = path.join(__dirname, 'seed-data.sql');
+    if (fs.existsSync(seedPath)) {
+      console.log(`Lendo o arquivo de seed: ${seedPath}`);
+      const seedSql = fs.readFileSync(seedPath, 'utf8');
+      console.log('Executando seed data no Supabase...');
+      await client.query(seedSql);
+      console.log('Dados de seed carregados com sucesso!');
+    }
+
     // Let's check if tables exist
     const res = await client.query(`
       SELECT table_name 

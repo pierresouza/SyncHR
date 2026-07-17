@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: profileError.message }, { status: 400 });
     }
 
-    const appUrl = "http://localhost:3000";
+    const appUrl = "http://synchr";
     await sendEmail({
       to: email,
       subject: "[SyncHR] Seu acesso foi criado",

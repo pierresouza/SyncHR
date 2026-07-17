@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
     name TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('LEADER', 'RH')),
+    role TEXT NOT NULL CHECK (role IN ('LEADER', 'RH', 'COLLABORATOR')),
     profile_type TEXT NOT NULL CHECK (profile_type IN ('TECNICO', 'TRANSICAO', 'ENGAJADO', 'PENDENTE', 'ADMINISTRADOR')),
     level_from TEXT,
     level_to TEXT,

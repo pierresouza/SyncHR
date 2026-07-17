@@ -40,11 +40,12 @@ import {
   FileCheck,
   PlusCircle,
   HelpCircle,
+  BookOpen,
   Video
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
-type SectionId = 'onboarding' | 'copiloto' | 'escalation' | 'rh' | 'historico' | 'simulador' | 'about';
+type SectionId = 'onboarding' | 'copiloto' | 'escalation' | 'rh' | 'historico' | 'simulador' | 'about' | 'manual';
 type SimPhase = 'intro' | 'abertura' | 'desenvolvimento' | 'fechamento' | 'feedback';
 
 interface SimAnswerOption {
@@ -302,6 +303,10 @@ export default function DashboardPage() {
   const [simulatedEmails, setSimulatedEmails] = useState<SimulatedEmail[]>([]);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
 
+  // Collaborator Feedback States
+  const [colabFeedbacks, setColabFeedbacks] = useState<Record<string, string>>({});
+  const [signingMeetingId, setSigningMeetingId] = useState<string | null>(null);
+
   // Simulator DISC interactive states
   const [simPhase, setSimPhase] = useState<SimPhase>('intro');
   const [simColabId, setSimColabId] = useState('colab-02');
@@ -321,6 +326,13 @@ export default function DashboardPage() {
   const [newColabLevel, setNewColabLevel] = useState('L1');
   const [newColabRole, setNewColabRole] = useState('');
   const [newColabLeaderId, setNewColabLeaderId] = useState('');
+
+  // Collaborator Edit states
+  const [editingColab, setEditingColab] = useState<Collaborator | null>(null);
+  const [editColabName, setEditColabName] = useState('');
+  const [editColabRole, setEditColabRole] = useState('');
+  const [editColabLevel, setEditColabLevel] = useState('L2');
+  const [editColabLeaderId, setEditColabLeaderId] = useState('');
 
   // General App & Database Initialization
   useEffect(() => {
@@ -451,8 +463,24 @@ export default function DashboardPage() {
             setActiveSection('onboarding');
           } else if (user.role === 'RH') {
             setActiveSection('rh');
+          } else if (user.role === 'COLLABORATOR') {
+            const matchedColab = seededColabs.find(c => c.email?.toLowerCase().trim() === user.email?.toLowerCase().trim());
+            if (matchedColab && (matchedColab.disc === 'PENDENTE' || !matchedColab.disc)) {
+              router.push(`/onboarding-liderado?email=${user.email}`);
+            } else {
+              setActiveSection('historico');
+            }
           } else {
             setActiveSection('copiloto');
+          }
+        } else {
+          if (user.role === 'COLLABORATOR') {
+            const matchedColab = seededColabs.find(c => c.email?.toLowerCase().trim() === user.email?.toLowerCase().trim());
+            if (matchedColab && (matchedColab.disc === 'PENDENTE' || !matchedColab.disc)) {
+              router.push(`/onboarding-liderado?email=${user.email}`);
+            } else {
+              setActiveSection('historico');
+            }
           }
         }
       }
@@ -516,6 +544,126 @@ export default function DashboardPage() {
     storage.setCurrentUser(null);
     storage.setLeaderProfile(null);
     router.push('/login');
+  };
+
+  const handleCollaboratorSignOff = async (meetingId: string, collaboratorId: string) => {
+    const feedbackNotes = colabFeedbacks[meetingId]?.trim() || '';
+    if (!feedbackNotes) {
+      Swal.fire('Atenção', 'Por favor, escreva suas observações/feedback sobre a reunião antes de assinar.', 'warning');
+      return;
+    }
+
+    setSigningMeetingId(meetingId);
+    try {
+      // 1. Atualizar notas e marcar como aprovado pelo liderado no Supabase
+      const { data, error } = await supabase
+        .from('one_on_ones')
+        .update({
+          raw_collaborator_notes: feedbackNotes,
+          collaborator_approved: true
+        })
+        .eq('id', meetingId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // 2. Acionar a Gemini API via serverless endpoint para avaliação de consistência
+      const matchedColab = collaborators.find(c => c.id === collaboratorId);
+      const evaluationRes = await fetch('/api/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawLeaderNotes: data.raw_leader_notes,
+          rawCollaboratorNotes: feedbackNotes,
+          transcription: data.transcription || '',
+          collaboratorName: matchedColab?.name || 'Colaborador',
+          collaboratorDisc: matchedColab?.disc || 'ESTAVEL'
+        })
+      });
+
+      if (evaluationRes.ok) {
+        const evalData = await evaluationRes.json();
+        
+        // Salvar os novos resumos e resultados da consistência gerados
+        await supabase
+          .from('one_on_ones')
+          .update({
+            final_summary: evalData.finalSummary || '',
+            consistency_result: evalData.consistencyResult,
+          })
+          .eq('id', meetingId);
+
+        // Se houver conflito ou inconsistência
+        const isDivergent = evalData.consistencyResult?.consistent === false;
+        if (isDivergent || evalData.hasConflict) {
+          const protocolNum = `SHR-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+          
+          await supabase.from('conflicts').insert({
+            protocol: protocolNum,
+            collaborator_id: collaboratorId,
+            description: `Conflito ou divergência acionada via feedback bilateral. Detalhes: ${evalData.consistencyResult?.details || 'Divergência de percepções.'}`,
+            date: new Date().toISOString().split('T')[0],
+            status: 'PENDING',
+            has_history: true,
+            is_bypass: false
+          });
+
+          // Disparar email via Resend
+          try {
+            const rhEmail = 'rh.priscila@clearit.com.br';
+            const alertHtml = `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 2px solid #dc2626; border-radius: 12px; background-color: #fef2f2; color: #991b1b;">
+                <h2 style="color: #dc2626; margin-top: 0;">🚨 Alerta Crítico: Conflito Iniciado pelo Liderado</h2>
+                <p>Olá Priscila (RH),</p>
+                <p>O SyncHR AI Auditor identificou um **desalinhamento grave ou potencial conflito** iniciado no preenchimento do formulário de feedback pelo colaborador **${matchedColab?.name || 'Colaborador'}**.</p>
+                <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #fee2e2; color: #1e293b;">
+                  <p style="margin: 5px 0;"><strong>Protocolo:</strong> <code>${protocolNum}</code></p>
+                  <p style="margin: 5px 0;"><strong>Colaborador:</strong> ${matchedColab?.name || 'Colaborador'}</p>
+                  <p style="margin: 5px 0;"><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
+                  <p style="margin: 10px 0 5px 0;"><strong>Detalhes da Análise:</strong></p>
+                  <p style="margin: 5px 0; font-style: italic; color: #475569;">"${evalData.consistencyResult?.details || 'Desalinhamento detectado entre as percepções da reunião.'}"</p>
+                </div>
+                <p>Por favor, acesse o Painel do RH na plataforma para avaliar a ocorrência.</p>
+                <hr style="border: 0; border-top: 1px solid #fee2e2; margin: 25px 0;" />
+                <p style="font-size: 11px; color: #991b1b; margin-bottom: 0;">Este é um alerta automático de conformidade corporativa enviado pelo SyncHR.</p>
+              </div>
+            `;
+
+            await fetch('/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: rhEmail,
+                subject: `🚨 ALERTA CRÍTICO: Conflito de Feedback - ${matchedColab?.name || 'Colaborador'}`,
+                html: alertHtml
+              })
+            });
+          } catch (emailErr) {
+            console.error('Erro ao enviar e-mail de alerta:', emailErr);
+          }
+        }
+      }
+
+      Swal.fire({
+        title: 'Ata Assinada!',
+        text: 'Você salvou seu feedback e assinou digitalmente esta reunião.',
+        icon: 'success',
+        background: '#0f172a',
+        color: '#cbd5e1',
+        confirmButtonColor: '#10b981',
+        customClass: { popup: 'border border-slate-800 rounded-2xl font-sans' }
+      });
+
+      if (currentUser) {
+        fetchDatabaseData(currentUser);
+      }
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire('Erro', 'Ocorreu um erro ao salvar o feedback: ' + err.message, 'error');
+    } finally {
+      setSigningMeetingId(null);
+    }
   };
 
   const handleSwitchSection = (sectionId: SectionId) => {
@@ -668,6 +816,35 @@ export default function DashboardPage() {
 
   const handleSaveProfile = async () => {
     if (!currentUser || !diagnosedProfile) return;
+
+    // Bypass para o Líder de Teste
+    if (currentUser.email?.toLowerCase().trim() === 'lider.teste@clearit.com.br') {
+      const lProfile: LeaderProfile = {
+        id: currentUser.id || '',
+        email: currentUser.email || '',
+        name: currentUser.name || '',
+        profile: diagnosedProfile,
+        levelFrom: levelFrom,
+        levelTo: levelTo
+      };
+      setLeaderProfile(lProfile);
+      
+      const updatedUser = { ...currentUser, profile: diagnosedProfile };
+      setCurrentUser(updatedUser);
+
+      Swal.fire({
+        title: 'Perfil Configurado (Teste)!',
+        text: `[AMBIENTE DE TESTE] Seu perfil foi definido temporariamente como Líder ${diagnosedProfile.toLowerCase()}. Os dados não foram salvos no banco para permitir testes ilimitados!`,
+        icon: 'success',
+        background: '#0f172a',
+        color: '#cbd5e1',
+        confirmButtonColor: '#4f46e5'
+      });
+
+      setActiveSection('copiloto');
+      setMeetingStep(1);
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -1217,7 +1394,7 @@ export default function DashboardPage() {
       const { error } = await supabase.from('collaborators').insert({
         name: newColabName,
         email: newColabEmail,
-        disc: newColabDisc,
+        disc: 'PENDENTE',
         level: newColabLevel,
         role: newColabRole,
         leader_id: newColabLeaderId || null
@@ -1273,6 +1450,46 @@ export default function DashboardPage() {
     }
   };
 
+  const handleStartEditCollaborator = (colab: Collaborator) => {
+    setEditingColab(colab);
+    setEditColabName(colab.name || '');
+    setEditColabRole(colab.role || '');
+    setEditColabLevel(colab.level || 'L2');
+    setEditColabLeaderId(colab.leaderId || '');
+  };
+
+  const handleSaveEditCollaborator = async () => {
+    if (!editingColab) return;
+    try {
+      const { error } = await supabase
+        .from('collaborators')
+        .update({
+          name: editColabName,
+          role: editColabRole,
+          level: editColabLevel,
+          leader_id: editColabLeaderId || null
+        })
+        .eq('id', editingColab.id);
+
+      if (error) throw error;
+
+      Swal.fire({
+        title: 'Liderado Atualizado!',
+        text: `Os dados do colaborador ${editColabName} foram atualizados com sucesso.`,
+        icon: 'success',
+        background: '#0f172a',
+        color: '#cbd5e1'
+      });
+
+      setEditingColab(null);
+      if (currentUser) {
+        fetchDatabaseData(currentUser);
+      }
+    } catch (err: any) {
+      Swal.fire('Erro ao Salvar', err.message, 'error');
+    }
+  };
+
 
   const handleResolveConflict = async (id: string, notes: string) => {
     try {
@@ -1306,12 +1523,13 @@ export default function DashboardPage() {
 
     if (confirm.isConfirmed) {
       try {
-        const { error } = await supabase
-          .from('collaborators')
-          .delete()
-          .eq('id', id);
-
-        if (error) throw error;
+        const res = await fetch('/api/delete-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, type: 'COLLABORATOR' })
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error || 'Erro ao excluir no servidor.');
 
         Swal.fire({
           title: 'Excluído!',
@@ -1364,12 +1582,13 @@ export default function DashboardPage() {
       });
 
       if (confirm.isConfirmed) {
-        const { error } = await supabase
-          .from('profiles')
-          .delete()
-          .eq('id', id);
-
-        if (error) throw error;
+        const res = await fetch('/api/delete-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, type: 'LEADER' })
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error || 'Erro ao excluir no servidor.');
 
         Swal.fire({
           title: 'Excluído!',
@@ -1575,6 +1794,17 @@ export default function DashboardPage() {
             <span>Sobre o SyncHR</span>
           </button>
 
+          <button
+            onClick={() => handleSwitchSection('manual')}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all ${activeSection === 'manual'
+                ? 'bg-gradient-to-r from-indigo-900/40 to-indigo-900/10 border-indigo-700/50 text-indigo-200'
+                : 'bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200'
+              }`}
+          >
+            <BookOpen className="w-4 h-4 shrink-0" />
+            <span>Manual da Plataforma</span>
+          </button>
+
           {currentUser?.role === 'LEADER' && (
             <button
               onClick={() => handleSwitchSection('onboarding')}
@@ -1585,6 +1815,16 @@ export default function DashboardPage() {
             >
               <UserCheck className="w-4 h-4 shrink-0" />
               <span>Onboarding Liderança</span>
+            </button>
+          )}
+
+          {currentUser?.role === 'COLLABORATOR' && (
+            <button
+              onClick={() => router.push(`/onboarding-liderado?email=${currentUser.email}`)}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all bg-transparent border-transparent hover:bg-slate-900/40 text-slate-400 hover:text-slate-200`}
+            >
+              <UserCheck className="w-4 h-4 shrink-0 text-emerald-400 animate-pulse" />
+              <span className="text-emerald-450">Realizar Teste DISC</span>
             </button>
           )}
 
@@ -1669,6 +1909,7 @@ export default function DashboardPage() {
             </button>
             <div className="text-sm font-bold text-slate-200 font-title uppercase tracking-wider">
               {activeSection === 'about' && 'Sobre o SyncHR'}
+              {activeSection === 'manual' && 'Manual de Uso da Plataforma'}
               {activeSection === 'onboarding' && 'Diagnóstico de Liderança'}
               {activeSection === 'copiloto' && 'Copiloto de Reuniões de 1:1'}
               {activeSection === 'simulador' && 'Simulador DISC Interativo'}
@@ -1784,6 +2025,162 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Seção da Equipe de Desenvolvimento */}
+              <div className="border-t border-slate-900/60 pt-8 space-y-4">
+                <div className="text-center md:text-left space-y-1">
+                  <h3 className="text-lg font-bold text-slate-100 font-title">Equipe de Desenvolvimento</h3>
+                  <p className="text-xs text-slate-400 font-sans">Os mentes por trás da arquitetura do ecossistema SyncHR (Clear IT).</p>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {[
+                    { name: "Pierre Souza", role: "Dev Fullstack / AI Integration", initial: "PS" },
+                    { name: "Ketelin Macedo", role: "UI-UX / Frontend Engineer", initial: "KM" },
+                    { name: "Gustavo Batista", role: "QA Engineer / Automation", initial: "GB" },
+                    { name: "Lucas Santos", role: "Security & LGPD Compliance", initial: "LS" },
+                    { name: "André Almeida", role: "Backend Developer / DB Admin", initial: "AA" }
+                  ].map((member, idx) => (
+                    <div key={idx} className="glass-card p-4 rounded-xl border border-slate-850 bg-slate-900/10 flex flex-col items-center text-center space-y-2 hover:border-slate-800 transition-all hover:bg-slate-900/20 group">
+                      <div className="w-10 h-10 rounded-full bg-indigo-950 border border-indigo-900 flex items-center justify-center text-xs font-mono font-bold text-indigo-400 group-hover:bg-indigo-900 group-hover:text-indigo-200 transition-all">
+                        {member.initial}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-200">{member.name}</div>
+                        <div className="text-[9px] text-slate-500 font-mono mt-0.5">{member.role}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* ==========================================
+              PAGE: MANUAL (MINI MANUAL DE USO)
+             ========================================== */}
+          {activeSection === 'manual' && (
+            <div className="max-w-4xl mx-auto space-y-6 animate-fade-in text-left font-sans">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-bold text-slate-100 font-title flex items-center gap-2">
+                  <BookOpen className="w-6 h-6 text-indigo-400" />
+                  Manual da Plataforma SyncHR
+                </h2>
+                <p className="text-xs text-slate-400 font-sans">Guia de uso de funcionalidades, contas de teste, status de integração e próximos passos.</p>
+              </div>
+
+              {/* Grid content */}
+              <div className="grid md:grid-cols-12 gap-6">
+                
+                {/* Left Side: Instructions */}
+                <div className="md:col-span-8 space-y-6">
+                  
+                  {/* Como testar */}
+                  <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/20 space-y-4">
+                    <h3 className="font-bold text-slate-200 text-sm font-title flex items-center gap-1.5 border-b border-slate-900 pb-2">
+                      <Play className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      Como Testar as Jornadas
+                    </h3>
+                    
+                    <div className="space-y-4 text-xs leading-relaxed text-slate-350">
+                      <div className="space-y-1">
+                        <span className="font-bold text-indigo-400 font-mono text-[10px] uppercase">1. Jornada do Líder / Gestor:</span>
+                        <p className="text-slate-400 font-sans leading-relaxed">
+                          Selecione um líder (Thiago, Lucas ou Aline) no painel de <strong>Acesso Rápido</strong> na tela de login. Após entrar, complete o questionário de onboarding de liderança para calibrar a IA. Na aba <strong>Copiloto de 1:1</strong>, selecione um liderado, defina a pauta e peça para a IA gerar o roteiro. Conduza a reunião e salve para gerar o link de assinatura.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="font-bold text-emerald-400 font-mono text-[10px] uppercase">2. Jornada do Liderado (Onboarding & DISC):</span>
+                        <p className="text-slate-400 font-sans leading-relaxed">
+                          Saia do sistema e clique no botão verde <strong>"Iniciar Onboarding do Liderado"</strong> na tela de login. Crie um perfil (ex: Roberto, Dev Front-end, nível L2) e selecione o líder correspondente. Responda ao teste comportamental de 4 perguntas para a IA calcular seu perfil DISC. Ao salvar, os dados serão persistidos no Supabase e vinculados ao líder.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="font-bold text-cyan-400 font-mono text-[10px] uppercase">3. Assinatura Bilateral de Atas:</span>
+                        <p className="text-slate-400 font-sans leading-relaxed">
+                          As atas salvas geram um link exclusivo. O liderado acessa a rota <code>/feedback?id=UUID</code> para revisar a pauta, registrar suas próprias notas e assinar digitalmente. A IA audita as notas do líder vs. do liderado em tempo real e calcula o alinhamento.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="font-bold text-violet-400 font-mono text-[10px] uppercase">4. Governança e Painel do RH:</span>
+                        <p className="text-slate-400 font-sans leading-relaxed">
+                          Entre com o perfil da Priscila Bacelar (RH). Visualize métricas de eNPS estimado da Clear IT, taxa de adesão de 1:1s e gerencie incidentes/conflitos sinalizados pelo auditor inteligente de IA.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* O que não está funcionando */}
+                  <div className="glass-card p-6 rounded-2xl border border-slate-800 bg-slate-950/20 space-y-4">
+                    <h3 className="font-bold text-slate-200 text-sm font-title flex items-center gap-1.5 border-b border-slate-900 pb-2">
+                      <AlertTriangle className="w-4 h-4 text-red-500 animate-pulse" />
+                      Limitações Atuais (O que está mockado no MVP)
+                    </h3>
+                    
+                    <div className="space-y-3 text-xs leading-relaxed text-slate-400 font-sans">
+                      <div className="flex gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                        <p><strong>Resend Email Dispatch:</strong> No MVP, o envio de e-mails em produção está simulado localmente e no log do painel do RH. O backend usa Nodemailer SMTP (Gmail) configurado no <code>.env.local</code> para disparar alertas reais de incidentes para Priscila Bacelar, mas tokens reais da API do Resend não estão ativos para fins de produção corporativa ampla.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                        <p><strong>Google Meet Integration:</strong> A conexão de escopo do Google OAuth é solicitada no login para consentimento do calendário, mas a geração de salas em background de eventos recorrentes exige um backend de tokens OAuth persistente, que no MVP é simulado com links padrão gerados localmente.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                        <p><strong>Sólides HR Integration:</strong> A sincronização automatizada bidirecional com a Sólides está fora do escopo deste MVP corporativo, dependendo de carga manual de perfis DISC feita pelo RH.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Right Side: Git, Info, Next Steps */}
+                <div className="md:col-span-4 space-y-6">
+                  
+                  {/* Repositorio Git */}
+                  <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/10 space-y-3">
+                    <div className="text-[10px] font-bold font-mono text-indigo-400 uppercase tracking-widest">Repositório Git</div>
+                    <p className="text-xs text-slate-400 leading-relaxed font-sans">Código-fonte oficial hospedado no GitHub para controle de versão e auditoria.</p>
+                    <a 
+                      href="https://github.com/pierresouza/SyncHR" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-900 text-indigo-300 text-xs font-mono hover:border-indigo-800 transition-all font-semibold"
+                    >
+                      <span>pierresouza/SyncHR</span>
+                      <Terminal className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+
+                  {/* Sugestões de Próximos Passos */}
+                  <div className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/10 space-y-4">
+                    <div className="text-[10px] font-bold font-mono text-indigo-400 uppercase tracking-widest border-b border-slate-900 pb-1.5">
+                      Próximos Passos (Roadmap)
+                    </div>
+                    
+                    <div className="space-y-3 text-xs font-sans">
+                      <div className="space-y-1">
+                        <span className="font-semibold text-slate-200">1. Integração Ativa de E-mails:</span>
+                        <p className="text-slate-400 text-[11px] leading-relaxed">Substituir mock de e-mails da Resend por tokens produtivos dedicados do domínio clearit.com.br.</p>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="font-semibold text-slate-200">2. Relatórios de Desempenho:</span>
+                        <p className="text-slate-400 text-[11px] leading-relaxed">Exportação de relatórios analíticos de consistência de liderança em PDF pelo RH para C-levels.</p>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="font-semibold text-slate-200">3. Análise de Sentimentos:</span>
+                        <p className="text-slate-400 text-[11px] leading-relaxed">Algoritmos preditivos baseados em IA para monitoramento de risco de turnover com alertas ao RH.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
               </div>
             </div>
           )}
@@ -2622,7 +3019,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
-
             </div>
           )}
 
@@ -2636,65 +3032,125 @@ export default function DashboardPage() {
                 <p className="text-xs text-slate-400">Listagem de atas gravadas e validadas no banco de dados.</p>
               </div>
 
-              {oneOnOnes.length === 0 ? (
-                <div className="glass-card p-12 text-center rounded-2xl border border-slate-850 bg-slate-950/20 text-slate-400">
-                  <ClipboardList className="w-8 h-8 mx-auto text-slate-600 mb-2" />
-                  <p className="text-sm font-semibold">Nenhuma reunião encontrada.</p>
-                  <p className="text-xs text-slate-500">Comece agendando uma no Copiloto.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {oneOnOnes.map(one => {
-                    const hasAudit = one.consistencyResult !== undefined && one.consistencyResult !== null;
-                    return (
-                      <div key={one.id} className="glass-card p-5 rounded-xl border border-slate-800 bg-slate-950/40 space-y-3">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-bold text-sm text-slate-200">{one.collaboratorName}</h3>
-                            <div className="flex gap-2 items-center text-[11px] text-slate-500 mt-0.5">
-                              <span className="font-mono">{one.date}</span>
-                              <span>•</span>
-                              <span>{one.type}</span>
+              {(() => {
+                const matchedColab = collaborators.find(c => c.email?.toLowerCase() === currentUser?.email?.toLowerCase());
+                const filteredOneOnOnes = currentUser?.role === 'COLLABORATOR' && matchedColab 
+                  ? oneOnOnes.filter(o => o.collaboratorId === matchedColab.id) 
+                  : oneOnOnes;
+
+                if (filteredOneOnOnes.length === 0) {
+                  return (
+                    <div className="glass-card p-12 text-center rounded-2xl border border-slate-850 bg-slate-950/20 text-slate-400 font-sans">
+                      <ClipboardList className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+                      <p className="text-sm font-semibold">Nenhuma reunião encontrada.</p>
+                      {currentUser?.role !== 'COLLABORATOR' && (
+                        <p className="text-xs text-slate-500">Comece agendando uma no Copiloto.</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4 font-sans">
+                    {filteredOneOnOnes.map(one => {
+                      const hasAudit = one.consistencyResult !== undefined && one.consistencyResult !== null;
+                      return (
+                        <div key={one.id} className="glass-card p-5 rounded-xl border border-slate-800 bg-slate-950/40 space-y-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-bold text-sm text-slate-200">{one.collaboratorName}</h3>
+                              <div className="flex gap-2 items-center text-[11px] text-slate-500 mt-0.5 font-mono">
+                                <span>{one.date}</span>
+                                <span>•</span>
+                                <span>{one.type}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                              {hasAudit && (
+                                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${one.consistencyResult?.consistent
+                                    ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/60'
+                                    : 'bg-amber-950 text-amber-400 border border-amber-900/60'
+                                  }`}>
+                                  {one.consistencyResult?.consistent ? 'Consistente' : 'Divergente'}
+                                </span>
+                              )}
+                              {one.collaboratorApproved ? (
+                                <span className="bg-emerald-950/50 text-emerald-400 border border-emerald-900/40 text-[10px] font-mono px-2 py-0.5 rounded flex items-center gap-1">
+                                  <Check className="w-3 h-3" />
+                                  Assinatura Bilateral
+                                </span>
+                              ) : (
+                                <span className="bg-amber-950/50 text-amber-400 border border-amber-900/40 text-[10px] font-mono px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                                  Aguardando Sua Assinatura
+                                </span>
+                              )}
                             </div>
                           </div>
 
-                          <div className="flex gap-2">
-                            {hasAudit && (
-                              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${one.consistencyResult?.consistent
-                                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/60'
-                                  : 'bg-amber-950 text-amber-400 border border-amber-900/60'
-                                }`}>
-                                {one.consistencyResult?.consistent ? 'Consistente' : 'Divergente'}
-                              </span>
-                            )}
-                            <span className="bg-emerald-900/30 text-emerald-400 border border-emerald-900/40 text-[10px] font-mono px-2 py-0.5 rounded flex items-center gap-1">
-                              <Check className="w-3 h-3" />
-                              Validada
-                            </span>
+                          <div className="text-xs text-slate-400 bg-slate-900/40 p-3 rounded-lg border border-slate-900 font-sans leading-relaxed">
+                            <div className="text-slate-500 font-semibold mb-1">Resumo Sintetizado:</div>
+                            {one.finalSummary || 'Sem resumo disponível.'}
                           </div>
-                        </div>
 
-                        <div className="text-xs text-slate-400 bg-slate-900/40 p-3 rounded-lg border border-slate-900 font-sans leading-relaxed">
-                          <div className="text-slate-500 font-semibold mb-1">Resumo Sintetizado:</div>
-                          {one.finalSummary || 'Sem resumo disponível.'}
-                        </div>
+                          {/* Separate RAW notes section */}
+                          <div className="grid md:grid-cols-2 gap-3 pt-2 text-[11px]">
+                            <div className="p-2.5 rounded bg-slate-900/30 border border-slate-900">
+                              <span className="text-slate-500 font-bold block mb-1">RAW Percepção Líder:</span>
+                              <span className="text-slate-400">{one.rawLeaderNotes || 'Sem registro.'}</span>
+                            </div>
+                            <div className="p-2.5 rounded bg-slate-900/30 border border-slate-900 flex flex-col justify-between">
+                              <div>
+                                <span className="text-slate-500 font-bold block mb-1">RAW Percepção Liderado:</span>
+                                {one.collaboratorApproved ? (
+                                  <span className="text-slate-400">{one.rawCollaboratorNotes || 'Sem registro.'}</span>
+                                ) : (
+                                  <span className="text-slate-500 italic">Sua percepção ainda não foi registrada. Preencha o feedback abaixo para assinar.</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
 
-                        {/* Separate RAW notes section */}
-                        <div className="grid md:grid-cols-2 gap-3 pt-2 text-[11px]">
-                          <div className="p-2.5 rounded bg-slate-900/30 border border-slate-900">
-                            <span className="text-slate-500 font-bold block mb-1">RAW Percepção Líder:</span>
-                            <span className="text-slate-400">{one.rawLeaderNotes || 'Sem registro.'}</span>
-                          </div>
-                          <div className="p-2.5 rounded bg-slate-900/30 border border-slate-900">
-                            <span className="text-slate-500 font-bold block mb-1">RAW Percepção Liderado:</span>
-                            <span className="text-slate-400">{one.rawCollaboratorNotes || 'Sem registro.'}</span>
-                          </div>
+                          {/* Collaborator Signature Form */}
+                          {currentUser?.role === 'COLLABORATOR' && !one.collaboratorApproved && (
+                            <div className="mt-3 p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 space-y-3">
+                              <div className="space-y-1">
+                                <label className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block font-bold">
+                                  Sua Opinião / Percepção do 1:1 (Feedback Obrigatório)
+                                </label>
+                                <textarea
+                                  placeholder="Escreva como foi a reunião na sua visão. Os combinados ficaram claros? Há algum ponto de discordância ou blocker que queira registrar?"
+                                  value={colabFeedbacks[one.id] ?? ''}
+                                  onChange={(e) => setColabFeedbacks(prev => ({ ...prev, [one.id]: e.target.value }))}
+                                  className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 h-20 resize-none font-sans"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                disabled={signingMeetingId === one.id}
+                                onClick={() => handleCollaboratorSignOff(one.id, one.collaboratorId)}
+                                className="w-full bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-slate-100 text-xs font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/20"
+                              >
+                                {signingMeetingId === one.id ? (
+                                  <>
+                                    <span className="w-3.5 h-3.5 border-2 border-slate-100 border-t-transparent rounded-full animate-spin"></span>
+                                    <span>Analisando e Assinando...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-slate-100" />
+                                    <span>Salvar Feedback & Assinar Ata Bilateralmente</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -3084,20 +3540,7 @@ export default function DashboardPage() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 font-mono uppercase">DISC</label>
-                          <select
-                            value={newColabDisc}
-                            onChange={(e) => setNewColabDisc(e.target.value as any)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2 text-slate-200 text-xs focus:outline-none"
-                          >
-                            <option value="DOMINANTE">DOMINANTE</option>
-                            <option value="ESTAVEL">ESTAVEL</option>
-                            <option value="ANALITICO">ANALITICO</option>
-                            <option value="INFLUENTE">INFLUENTE</option>
-                          </select>
-                        </div>
+                      <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <label className="text-[10px] text-slate-400 font-mono uppercase">Nível</label>
                           <select
@@ -3292,12 +3735,20 @@ export default function DashboardPage() {
                                     </div>
                                   </td>
                                   <td className="py-2 text-right">
-                                    <button
-                                      onClick={() => handleDeleteCollaborator(colab.id as string, colab.name)}
-                                      className="text-[10px] text-red-400 hover:text-red-300 hover:underline font-bold px-2 py-1 transition-all"
-                                    >
-                                      Deletar
-                                    </button>
+                                    <div className="flex gap-2 justify-end">
+                                      <button
+                                        onClick={() => handleStartEditCollaborator(colab)}
+                                        className="text-[10px] text-indigo-400 hover:text-indigo-300 hover:underline font-bold px-1.5 py-1 transition-all"
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteCollaborator(colab.id as string, colab.name)}
+                                        className="text-[10px] text-red-400 hover:text-red-300 hover:underline font-bold px-1.5 py-1 transition-all"
+                                      >
+                                        Deletar
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -3310,6 +3761,89 @@ export default function DashboardPage() {
 
                 </div>
 
+              </div>
+            </div>
+          )}
+
+          {editingColab && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="glass-card max-w-md w-full p-6 rounded-2xl border border-slate-800 bg-slate-950/90 shadow-2xl space-y-4 font-sans text-left">
+                <h3 className="font-bold text-slate-100 text-sm border-b border-slate-900 pb-2 flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-indigo-400" />
+                  Editar Dados do Liderado
+                </h3>
+                
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-mono uppercase">Nome Completo</label>
+                    <input
+                      type="text"
+                      value={editColabName}
+                      onChange={(e) => setEditColabName(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2.5 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-mono uppercase">Cargo / Função</label>
+                    <input
+                      type="text"
+                      value={editColabRole}
+                      onChange={(e) => setEditColabRole(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2.5 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 font-mono uppercase">Nível</label>
+                      <select
+                        value={editColabLevel}
+                        onChange={(e) => setEditColabLevel(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2.5 text-slate-200 text-xs focus:outline-none"
+                      >
+                        <option value="L1">L1 (Júnior)</option>
+                        <option value="L2">L2 (Pleno)</option>
+                        <option value="L3">L3 (Sênior)</option>
+                        <option value="L4">L4 (Principal)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 font-mono uppercase">Gestor / Líder</label>
+                      <select
+                        value={editColabLeaderId}
+                        onChange={(e) => setEditColabLeaderId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 px-2.5 text-slate-200 text-xs focus:outline-none"
+                      >
+                        <option value="">Nenhum (Sem Líder)</option>
+                        {profiles
+                          .filter(p => p.profile !== 'PENDENTE' && p.profile !== 'ADMINISTRADOR')
+                          .map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))
+                        }
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-3 border-t border-slate-900">
+                  <button
+                    type="button"
+                    onClick={() => setEditingColab(null)}
+                    className="flex-1 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-300 text-xs font-semibold py-2 rounded-lg transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveEditCollaborator}
+                    className="flex-1 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-slate-100 text-xs font-semibold py-2 rounded-lg transition-all shadow-md shadow-indigo-950/20"
+                  >
+                    Salvar
+                  </button>
+                </div>
               </div>
             </div>
           )}

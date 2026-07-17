@@ -19,7 +19,7 @@ export default function LoginPage() {
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regRole, setRegRole] = useState<'LEADER' | 'RH'>('LEADER');
+  const [regRole, setRegRole] = useState<'LEADER' | 'RH' | 'COLLABORATOR'>('LEADER');
 
   useEffect(() => {
     storage.initialize();
@@ -28,6 +28,31 @@ export default function LoginPage() {
       router.push('/');
     }
   }, [router]);
+
+  // Static list of test/RH accounts
+  const dbUsers = [
+    {
+      email: 'rh.priscila@clearit.com.br',
+      password: 'rh123456',
+      name: 'Priscila Bacelar (RH)',
+      role: 'RH',
+      profile: 'ADMINISTRADOR'
+    },
+    {
+      email: 'lider.teste@clearit.com.br',
+      password: 'leader123456',
+      name: 'Líder Teste (Onboarding)',
+      role: 'LEADER',
+      profile: 'PENDENTE'
+    },
+    {
+      email: 'liderado.teste@clearit.com.br',
+      password: 'colab123456',
+      name: 'Liderado Teste (Onboarding)',
+      role: 'COLLABORATOR',
+      profile: 'PENDENTE'
+    }
+  ];
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,42 +66,76 @@ export default function LoginPage() {
         password,
       });
 
-      // 2. Se falhar por usuário inexistente, mas for uma conta Mock, realizar auto-cadastro
-      const mockUser = MOCK_USERS.find(
-        (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-      );
+      // 2. Se falhar por usuário inexistente, verifica se o e-mail existe no banco (ou nos mocks padrão)
+      if (authError && (authError.message.toLowerCase().includes('invalid login credentials') || authError.message.toLowerCase().includes('invalid credentials'))) {
+        
+        // 2a. Buscar na tabela collaborators
+        const { data: dbColab } = await supabase
+          .from('collaborators')
+          .select('*')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle();
 
-      if (authError && mockUser) {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              name: mockUser.name,
-              role: mockUser.role,
-              profile: mockUser.profile,
+        // 2b. Buscar na tabela profiles
+        const { data: dbProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle();
+
+        const existsInDb = !!dbColab || !!dbProfile;
+
+        // 2c. Verificar se é uma conta Mock
+        const mockUser = MOCK_USERS.find(
+          (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+        );
+
+        if (existsInDb || mockUser) {
+          const userDetails = mockUser || {
+            name: dbColab ? dbColab.name : (dbProfile ? dbProfile.name : 'Colaborador'),
+            role: dbColab ? 'COLLABORATOR' : (dbProfile ? dbProfile.role : 'LEADER'),
+            profile: dbColab ? 'PENDENTE' : (dbProfile ? dbProfile.profile_type : 'PENDENTE')
+          };
+
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                name: userDetails.name,
+                role: userDetails.role,
+                profile: userDetails.profile,
+              }
             }
-          }
-        });
-
-        if (!signUpError && signUpData.user) {
-          // Criar registro na tabela public.profiles
-          await supabase.from('profiles').insert({
-            id: signUpData.user.id,
-            email: mockUser.email,
-            name: mockUser.name,
-            role: mockUser.role,
-            profile_type: mockUser.profile,
-            level_from: 'Coordenador',
-            level_to: 'Gerente'
           });
 
-          // Tentar login novamente
-          const reSignIn = await supabase.auth.signInWithPassword({ email, password });
-          authData = reSignIn.data;
-          authError = reSignIn.error;
-        } else if (signUpError) {
-          authError = signUpError;
+          if (!signUpError && signUpData.user) {
+            // Se já tem perfil no profiles, atualiza o id para o do Auth
+            if (dbProfile) {
+              await supabase
+                .from('profiles')
+                .update({ id: signUpData.user.id })
+                .eq('email', email);
+            } else {
+              // Se é novo ou só existia na tabela collaborators, cria o profile
+              await supabase.from('profiles').insert({
+                id: signUpData.user.id,
+                email: email,
+                name: userDetails.name,
+                role: userDetails.role,
+                profile_type: userDetails.profile,
+                level_from: 'Coordenador',
+                level_to: 'Gerente'
+              });
+            }
+
+            // Tentar login novamente
+            const reSignIn = await supabase.auth.signInWithPassword({ email, password });
+            authData = reSignIn.data;
+            authError = reSignIn.error;
+          } else if (signUpError) {
+            authError = signUpError;
+          }
         }
       }
 
@@ -93,16 +152,52 @@ export default function LoginPage() {
       }
 
       if (authData?.user) {
-        // Buscar perfil na tabela public.profiles
-        const { data: profile, error: profileError } = await supabase
+        // Buscar perfil por e-mail primeiro para verificar se já existe no seed
+        const { data: existingProfile } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', authData.user.id)
+          .eq('email', authData.user.email)
           .single();
 
-        if (profileError || !profile) {
+        let profile = existingProfile;
+
+        // Se o perfil existe com ID antigo (do seed), atualiza as referências e o ID para o novo UID do Auth
+        if (existingProfile && existingProfile.id !== authData.user.id) {
+          const oldId = existingProfile.id;
+          const newId = authData.user.id;
+
+          try {
+            // 1. Atualiza collaborators.leader_id
+            await supabase
+              .from('collaborators')
+              .update({ leader_id: newId })
+              .eq('leader_id', oldId);
+
+            // 2. Atualiza profiles.id
+            await supabase
+              .from('profiles')
+              .update({ id: newId })
+              .eq('id', oldId);
+
+            profile = { ...existingProfile, id: newId };
+          } catch (bridgeErr) {
+            console.error('Erro ao transferir ID de seed do Líder:', bridgeErr);
+          }
+        }
+
+        // Fallback de busca por ID caso não tenha achado por e-mail
+        if (!profile) {
+          const { data: profileById } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authData.user.id)
+            .single();
+          profile = profileById;
+        }
+
+        if (!profile) {
           // Fallback caso o profile público não tenha sido criado
-          console.warn('Perfil público não encontrado, criando...', profileError);
+          console.warn('Perfil público não encontrado, criando...');
           const meta = authData.user.user_metadata;
           const { data: newProfile } = await supabase.from('profiles').insert({
             id: authData.user.id,
@@ -231,7 +326,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleSelectMock = (u: typeof MOCK_USERS[number]) => {
+  const handleSelectMock = (u: any) => {
     setEmail(u.email);
     setPassword(u.password);
     setError('');
@@ -363,32 +458,44 @@ export default function LoginPage() {
                 <div className="pt-4 border-t border-slate-900 space-y-2">
                   <div className="flex items-center gap-1.5 text-xs tracking-wide text-slate-400 uppercase font-mono">
                     <ShieldAlert className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Acesso Rápido de Teste (Administração)</span>
+                    <span>Acesso Rápido de Teste</span>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-2 text-left">
-                    {MOCK_USERS.filter(u => u.role === 'RH').map((user) => {
+                  <div className="grid grid-cols-2 gap-2 text-left">
+                    {dbUsers.map((user) => {
                       const isRH = user.role === 'RH';
+                      const isColab = user.role === 'COLLABORATOR';
+
+                      const badgeText = isRH ? 'RH' : isColab ? 'COLAB' : 'LDR';
+                      const badgeStyles = isRH 
+                        ? 'bg-cyan-950/50 text-cyan-400 border border-cyan-900/40' 
+                        : isColab 
+                          ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/40' 
+                          : 'bg-indigo-950/50 text-indigo-400 border border-indigo-900/40';
+
+                      const cardBorder = isColab 
+                        ? 'border-emerald-950/40 hover:border-emerald-850 hover:bg-emerald-950/20' 
+                        : 'border-slate-900 hover:border-slate-800/80 hover:bg-slate-900/80';
+                      const nameColor = isColab ? 'text-emerald-400' : 'text-slate-200';
 
                       return (
                         <button
                           key={user.email}
                           onClick={() => handleSelectMock(user)}
                           type="button"
-                          className="p-2 text-xs rounded-lg bg-slate-900/40 border border-slate-900 hover:bg-slate-900/80 hover:border-slate-800/80 text-slate-300 transition-all truncate flex items-center justify-between"
+                          className={`p-2 text-[11px] rounded-lg bg-slate-900/40 border text-slate-300 transition-all truncate flex flex-col gap-0.5 justify-center relative pr-8 text-left ${cardBorder}`}
                         >
-                          <div>
-                            <div className="font-semibold text-slate-200 truncate">{user.name}</div>
-                            <div className="text-xs text-slate-500">{user.email}</div>
-                          </div>
-                          {isRH && (
-                            <span className="text-[11px] bg-cyan-950/50 text-cyan-400 border border-cyan-900/40 px-1.5 py-0.5 rounded font-mono font-bold">RH</span>
-                          )}
+                          <div className={`font-semibold truncate w-full ${nameColor}`}>{user.name}</div>
+                          <div className="text-[10px] text-slate-500 truncate w-full">{user.email}</div>
+                          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[9px] px-1 py-0.2 rounded font-mono font-bold ${badgeStyles}`}>
+                            {badgeText}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
+
               </>
             ) : (
               <>
@@ -458,26 +565,36 @@ export default function LoginPage() {
 
                   <div className="space-y-1.5 text-left">
                     <label className="text-xs font-semibold tracking-wider text-slate-400 uppercase font-mono block">Tipo de Papel (Função)</label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
                         onClick={() => setRegRole('LEADER')}
-                        className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${regRole === 'LEADER'
+                        className={`py-2 px-1 rounded-xl border text-[10px] font-semibold transition-all text-center truncate ${regRole === 'LEADER'
                             ? 'bg-indigo-900/20 border-indigo-500 text-indigo-300'
                             : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900/80'
                           }`}
                       >
-                        Líder / Gestor
+                        Líder/Gestor
                       </button>
                       <button
                         type="button"
                         onClick={() => setRegRole('RH')}
-                        className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${regRole === 'RH'
+                        className={`py-2 px-1 rounded-xl border text-[10px] font-semibold transition-all text-center truncate ${regRole === 'RH'
                             ? 'bg-indigo-900/20 border-indigo-500 text-indigo-300'
                             : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900/80'
                           }`}
                       >
-                        Administrador RH
+                        RH Admin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegRole('COLLABORATOR')}
+                        className={`py-2 px-1 rounded-xl border text-[10px] font-semibold transition-all text-center truncate ${regRole === 'COLLABORATOR'
+                            ? 'bg-indigo-900/20 border-indigo-500 text-indigo-300'
+                            : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900/80'
+                          }`}
+                      >
+                        Colaborador
                       </button>
                     </div>
                   </div>
