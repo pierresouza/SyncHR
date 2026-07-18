@@ -1,167 +1,162 @@
-# Manual de Uso: Onion Portable 🧅
+# SyncHR - Manual de Uso, Especificação do Sistema & Roadmap
 
-Bem-vindo ao **Onion Portable**. Esta é uma versão super enxuta da metodologia Spec-as-Code do Sistema Onion, desenhada para rodar em Web Chats restritos (Claude.ai, ChatGPT Custom GPTs, Gemini) e também nativamente em IDEs Agênticas (Antigravity, Cursor, Claude Code, Zed, ...).
-
----
-
-## 1. O que tem no pacote?
-
-A pasta `onion-portable` contém:
-- **`ONION-MASTER-PROMPT.md`**: O "Cérebro". É a instrução que você deve dar à IA para que ela assuma as personas do Onion.
-- **`docs/`**: A pasta com os 3 arquivos de contexto/ciclo que guiam a IA e guardam as informações do seu projeto:
-  1. `business-context-lite.md` — Contexto de Negócio (o que construir)
-  2. `technical-context-lite.md` — Contexto Técnico (como construir)
-  3. `onion-cycles.md` — Etapas e regras de todos os Ciclos de Desenvolvimento (Produto, Engenharia, KB e Sync) consolidadas em arquivo único para respeitar os limites de arquivos de contas gratuitas de IA.
-- **`docs/knowledge-base/`**: Pasta para armazenar Knowledge Bases temáticas criadas pelo `@meta`.
+O **SyncHR (Smart Leading)** é uma plataforma inteligente voltada para a calibração de lideranças e estruturação de reuniões individuais (1:1). O sistema integra inteligência artificial generativa (Gemini API) para moldar roteiros produtivos conforme os perfis comportamentais e detectar divergências de percepção nas atas bilaterais.
 
 ---
 
-## 2. Como Instalar (Guia por Plataforma)
+## 1. Visão Geral da Plataforma
 
-### 💻 Cenário A: Web Chats (IA atua como Motor Lógico - Sem Escrita Direta)
-Neste cenário, a IA guiará as fases de Produto e Engenharia através de respostas no chat, mas a gravação e atualização dos arquivos `.md` locais é feita manualmente por você (copiar/colar).
+O MVP foi projetado especificamente para apoiar as dinâmicas corporativas da **Clear IT Brasil**. O objetivo é mitigar reuniões de 1:1 ineficientes através de um copiloto de IA adaptativo e um motor automático de conformidade (governança do RH).
 
-*   **Claude.ai (Claude Projects) [Recomendado para Web]**:
-    1. Crie um novo **Project** (disponível no plano Pro/Team).
-    2. Adicione o conteúdo de [`ONION-MASTER-PROMPT.md`](./ONION-MASTER-PROMPT.md) nas *Custom Instructions* do Projeto.
-    3. Faça o upload dos 3 arquivos da pasta `docs/` nos *Project Files* (Knowledge).
-    4. *Fluxo:* Sempre que o Claude atualizar uma especificação, copie a resposta dele e atualize os arquivos correspondentes na sua máquina.
-*   **ChatGPT (Custom GPTs ou ChatGPT Projects)**:
-    *   **Opção A: Custom GPTs (Geral/Persistente)**:
-        1. Crie um **Custom GPT** (acessando *Explore GPTs* -> *Create*).
-        2. Cole o conteúdo de [`ONION-MASTER-PROMPT.md`](./ONION-MASTER-PROMPT.md) no campo de *Instructions*.
-        3. Na área de *Knowledge*, faça o upload dos 3 arquivos da pasta `docs/` para servirem de referência de regras e templates.
-        4. Certifique-se de habilitar o "Code Interpreter" nas configurações para melhor raciocínio e escrita lógica.
-    *   **Opção B: ChatGPT Projects (Ideal para Repositórios/Times)**:
-        1. Crie um **Project** (disponível para contas Team/Enterprise).
-        2. Nas *Custom Instructions* do projeto, insira o conteúdo do [`ONION-MASTER-PROMPT.md`](./ONION-MASTER-PROMPT.md).
-        3. Faça o upload dos 3 arquivos da pasta `docs/` e de qualquer outro código relevante do repositório em *Files* do projeto.
-        4. O histórico de conversas e os arquivos compartilhados no projeto manterão o alinhamento de forma simplificada.
-*   **Gemini (Advanced / Gems)**:
-    1. Crie uma **Gem** personalizada.
-    2. Cole o conteúdo de [`ONION-MASTER-PROMPT.md`](./ONION-MASTER-PROMPT.md) nas instruções da Gem.
-    3. Anexe os 3 arquivos de contexto `docs/` na conversa inicial para dar o ponto de partida do seu projeto.
+### Principais Pilares:
+1. **Onboarding de Liderança:** Calibração inicial do perfil de liderança (Técnico, Em transição, Engajado) para moldar os prompts da IA.
+2. **Onboarding de Liderados (Quiz DISC):** Questionário comportamental compulsório para determinar o perfil DISC do colaborador (Dominante, Estável, Analítico, Influente).
+3. **Copiloto de IA para 1:1:** Assistente inteligente que gera pautas customizadas cruzando o perfil do líder e o perfil comportamental do liderado.
+4. **Assinatura Bilateral e Auditoria Inteligente:** Sistema em que ambos (líder e liderado) inserem suas impressões sobre a reunião. A IA audita se há desalinhamento e calcula o índice de consistência, gerando protocolos de conflito automáticos.
+5. **Painel de Governança do RH:** Central de métricas e de mediação de conflitos, com ferramentas para cadastrar líderes, cadastrar liderados e transferir colaboradores de gestor.
 
 ---
 
-### ⚙️ Cenário B: IDEs Agênticas (Escrita Direta no Sistema de Arquivos)
-Neste cenário, a própria IDE lerá e atualizará os arquivos de contexto de forma autônoma. Você não precisa copiar e colar nada, apenas aprovar as alterações.
+## 2. Arquitetura do Banco de Dados (Supabase)
 
-*   **Antigravity IDE [Recomendado para Agentes Autônomos]**:
-    1. Cole a pasta `docs/` na raiz do seu projeto.
-    2. Coloque o arquivo [`ONION-MASTER-PROMPT.md`](./ONION-MASTER-PROMPT.md) na pasta `.agents/rules/` (ou importe-o como regra global da IDE).
-    3. A IA gerenciará as fases e fará a gravação direta dos arquivos de contexto no disco.
-*   **Cursor (Cursor Agents / `.cursorrules`)**:
-    1. Cole a pasta `docs/` na raiz do seu projeto.
-    2. Cole o conteúdo de [`ONION-MASTER-PROMPT.md`](./ONION-MASTER-PROMPT.md) dentro de um arquivo chamado `.cursorrules` na raiz do seu repositório (ou use o chat do Cursor referenciando-o).
-*   **GitHub Copilot (VS Code / JetBrains - Copilot Edits)**:
-    1. Cole a pasta `docs/` na raiz do seu projeto.
-    2. No chat do **Copilot Edits** (modo agente), adicione os arquivos de contexto da pasta `docs/` e o [`ONION-MASTER-PROMPT.md`](./ONION-MASTER-PROMPT.md) na lista de arquivos em contexto.
-    3. Instrua a IA a seguir rigorosamente as personas e etapas detalhadas no prompt.
-*   **Claude Code / Cowork**:
-    1. Cole a pasta `docs/` na raiz do seu projeto.
-    2. Adicione o arquivo [`ONION-MASTER-PROMPT.md`](./ONION-MASTER-PROMPT.md) na pasta `.claude/rules/` ou como regra do seu ambiente de agente.
-    3. O agente CLI do Claude Code lerá os arquivos de ciclo e o contexto técnico/negócio para planejar e executar a escrita do código.
-*   **Zed (Zed AI / Assistants)**:
-    1. Cole a pasta `docs/` na raiz do seu projeto.
-    2. Adicione o conteúdo do [`ONION-MASTER-PROMPT.md`](./ONION-MASTER-PROMPT.md) como prompt de sistema ou insira nas instruções do assistente do Zed.
-    3. Use o editor Zed AI com suporte a escrita e alteração de múltiplos arquivos de contexto em disco.
+A persistência do SyncHR é estruturada nas seguintes tabelas PostgreSQL no Supabase:
 
+### A. Tabela `profiles`
+Armazena as informações cadastrais e de liderança dos usuários administrativos e gestores.
+*   `id` (uuid, primary key) — Vinculado ao Supabase Auth `auth.users`.
+*   `email` (text) — E-mail do usuário.
+*   `name` (text) — Nome completo.
+*   `role` (text) — Papel no sistema (`RH`, `LEADER`, `COLLABORATOR`).
+*   `profile_type` (text) — Calibração da liderança (`TECNICO`, `TRANSICAO`, `ENGAJADO`, `PENDENTE`, `ADMINISTRADOR`).
+*   `level_from` / `level_to` (text) — Nível de cargo de atuação.
 
----
+### B. Tabela `collaborators`
+Armazena a base de colaboradores/liderados.
+*   `id` (uuid, primary key) — Identificador único.
+*   `name` (text) — Nome completo.
+*   `email` (text) — E-mail do liderado.
+*   `disc` (text) — Perfil DISC do colaborador (`DOMINANTE`, `ESTAVEL`, `ANALITICO`, `INFLUENTE`, `PENDENTE`).
+*   `level` (text) — Nível de senioridade (`L1`, `L2`, `L3`, `L4`).
+*   `role` (text) — Cargo ou função.
+*   `leader_id` (uuid, foreign key) — ID do líder responsável na tabela `profiles`.
 
-## 3. Como usar no dia a dia (O Ciclo de Vida)
+### C. Tabela `one_on_ones`
+Armazena as reuniões e atas das dinâmicas individuais.
+*   `id` (uuid, primary key) — Identificador.
+*   `leader_id` (uuid, foreign key) — Autor/Líder na tabela `profiles`.
+*   `collaborator_id` (uuid, foreign key) — Colaborador participante na tabela `collaborators`.
+*   `date` (text) — Data da reunião.
+*   `type` (text) — Foco da pauta.
+*   `context` (text) — Contexto complementar ou impedimentos.
+*   `script_text` (text) — Roteiro de perguntas sugerido pela IA.
+*   `raw_leader_notes` (text) — Anotações reais salvas pelo gestor.
+*   `raw_collaborator_notes` (text) — Percepção registrada pelo colaborador na assinatura.
+*   `leader_approved` (boolean) — Status de assinatura do líder.
+*   `collaborator_approved` (boolean) — Status de assinatura do colaborador.
+*   `consistency_result` (jsonb) — Resultado do parecer e pontuações da IA.
 
-O Onion Portable não é um gerador de código descontrolado. Ele segue regras estritas. Aqui estão os gatilhos e fluxos que você deve usar na conversa com a IA:
-
-### 💡 Criando algo novo (O Ciclo de Produto)
-- **O que você diz:** *"Tive uma ideia: quero colocar uma funcionalidade de exportar para PDF."*
-- **O que a IA faz:** Ativa a persona `@product`, faz perguntas para entender o negócio, gera as especificações e atualiza o `business-context-lite.md`.
-  - No **Cenário B**, a IA edita o arquivo diretamente.
-  - No **Cenário A**, a IA gera o markdown e pede para você salvar localmente.
-- *(Nunca peça código nesta fase!)*
-
-### ⚙️ Desenvolvendo a ideia (O Ciclo de Engenharia)
-- **O que você diz:** *"O produto está especificado, pode iniciar o trabalho do @engineer."*
-- **O que a IA faz:** Lê as especificações, cria um plano arquitetural passo a passo no `technical-context-lite.md`. Depois que você aprovar, ela gera o código.
-  - No **Cenário B**, a IA cria/edita os arquivos de código diretamente no projeto.
-  - No **Cenário A**, a IA gera blocos de código para você colar.
-
-### 📚 Estudando algo novo (O Ciclo de Knowledge Base)
-- **O que você diz:** *"Atue como @meta e faça uma pesquisa sobre o framework Tailwind. Crie uma KB para nós."*
-- **O que a IA faz:** Estuda o assunto e gera um Markdown mastigado.
-  - No **Cenário B**, a IA salva em `docs/knowledge-base/[nome-do-tema].md` diretamente.
-  - No **Cenário A**, a IA gera o bloco e pede para você salvar no mesmo caminho.
-
-### 🔄 Lidando com Código Legado (O Ciclo de Sincronismo)
-- **O que você diz:** *"Atue como @docs e faça engenharia reversa do projeto."*
-- **O que a IA faz:** Lê seu código e infere automaticamente o Produto e a Engenharia.
-  - No **Cenário B**, a IA lê o código diretamente do filesystem e atualiza os contextos.
-  - No **Cenário A**, a IA pede que você cole o código e depois gera os documentos.
+### D. Tabela `conflicts`
+Guarda as ocorrências de desalinhamento severo identificadas pela IA para mediação do RH.
+*   `id` (uuid, primary key) — Identificador.
+*   `protocol` (text) — Código alfanumérico único do protocolo.
+*   `one_on_one_id` (uuid, foreign key) — Vínculo com a reunião.
+*   `collaborator_id` (uuid, foreign key) — Colaborador afetado.
+*   `severity` (text) — Nível de alerta (`CRITICAL` ou `WARNING`).
+*   `status` (text) — Estado da ocorrência (`PENDING`, `IN_INVESTIGATION`, `RESOLVED`).
+*   `notes` (text) — Parecer ou notas de mediação aplicadas pelo RH.
 
 ---
 
-## ⚠️ Regra de Ouro: Como os arquivos são salvos?
+## 3. Guias de Uso e Testes das Jornadas
 
-Como o Onion lida com a documentação depende inteiramente do seu ambiente:
+Para testar as jornadas integradas do SyncHR, use os três atalhos rápidos de acesso disponibilizados por padrão na tela de login (`/login`).
 
-**Se você está em um Web Chat restrito (Cenário A):**
-Como a IA não pode editar seus arquivos locais diretamente, a entrega de múltiplos arquivos se adapta dinamicamente à plataforma utilizada:
-*   **ChatGPT (com Code Interpreter):** A IA cria a estrutura de pastas internamente e gera um arquivo `.zip` para você baixar e descompactar na raiz do seu projeto.
-*   **Claude (com Artifacts):** A IA disponibiliza os arquivos em blocos de artefatos interativos individuais para fácil download.
-*   **Outros Chats (como Gemini):** A IA gera o conteúdo `.md` completo dentro de blocos de código separados. Sua tarefa é copiar e salvar nos caminhos indicados.
-*   *Resumo:* A IA sempre acompanhará a entrega com um resumo sintético rápido para facilitar a leitura das alterações.
+### 💼 A. Jornada do Líder / Gestor (Testar Onboarding & Copiloto)
+1. **Login Rápido:** Clique no atalho **Líder Teste** (`lider.teste@clearit.com.br`) na tela de login.
+2. **Onboarding:** Por ser uma conta de teste repetível, ela é iniciada no status de onboarding gerencial. Responda o formulário avaliativo de estilo para calibrar a IA.
+3. **Construção de Pautas:** Acesse a aba **Copiloto de 1:1**, preencha os dados do colaborador, as pautas de impedimentos e clique em **Gerar Roteiro com IA**. A IA gerará um script focado no perfil DISC do liderado.
+4. **Finalizar Ata:** Conduza a reunião simulada, escreva suas notas de gestor e clique em **Salvar e Enviar para Assinatura**. Isso envia o e-mail de notificação por Pipedream e gera o link de assinatura.
 
-**Se você está em uma IDE Agêntica (Cenário B — Antigravity, Cursor):**
-Você não precisa copiar nada! A IA tem permissão de escrita. Ela vai te mostrar o que planeja fazer, pedir a sua confirmação e, uma vez aprovada, **ela mesma vai editar e gravar o arquivo diretamente no seu projeto.** Apenas relaxe e deixe o motor trabalhar.
+### 👥 B. Jornada do Liderado (Onboarding Obrigatório & Assinatura)
+1. **Login Rápido:** Clique no atalho **Liderado Teste** (`liderado.teste@clearit.com.br`) na tela de login.
+2. **Redirecionamento ao Onboarding:** Como o perfil DISC inicial do liderado é `'PENDENTE'`, o sistema redireciona-o imediatamente para `/onboarding-liderado`. Complete o teste de 4 perguntas. Após a conclusão, a tela inicial de colaborador será liberada.
+3. **Feedback e Assinatura:** Na aba de Histórico do Liderado, localize a ata pendente enviada pelo gestor. Escreva o seu feedback de concordância e assine digitalmente. A IA (Gemini) avaliará o alinhamento de percepções e atualizará o banco de dados.
+
+### 🛡️ C. Jornada de Governança do RH (Painel de Controle)
+1. **Login Rápido:** Clique no atalho **Priscila Bacelar (RH)** (`rh.priscila@clearit.com.br`).
+2. **Governança:** Monitore métricas corporativas, confira as atas registradas e acesse a central de alertas do RH.
+3. **Gestão de Colaboradores e Líderes:**
+   * Crie novos gestores (que recebem e-mail automático com suas credenciais via Pipedream webhook).
+   * Cadastre novos colaboradores (que iniciam automaticamente em estado de onboarding `'PENDENTE'`).
+   * **Edição & Transferência:** Use o botão **Editar** na lista de liderados para trocar o gestor atribuído a um colaborador. Isso remove o impedimento de exclusão de líderes que contêm equipes ativas.
 
 ---
 
-## 🛡️ O Guardião do Fluxo (Auto-Consciência & Diagnóstico)
+## 4. Integração de E-mails com Pipedream
 
-Para garantir que o desenvolvimento siga o padrão Spec-as-Code de forma consistente, o Onion possui regras integradas de auto-monitoramento:
+Neste MVP, o fluxo de envio de e-mails da aplicação (boas-vindas ao colaborador, convite de reunião Meet, link de assinatura digital e alertas críticos de atrito ao RH) foi desacoplado no cliente de frontend e isolado no módulo central de serviços `src/lib/emailService.ts`.
 
-*   **Bloqueio de Bypass:** Se você pedir código diretamente sem antes especificar o Produto ou planejar a Engenharia, a IA fará um alerta de auto-consciência lembrando-o de seguir as fases necessárias para manter a qualidade e o sincronismo.
-*   **Auto-Diagnóstico (`/status` ou `/health`):** A qualquer momento no chat, você pode digitar `/status` ou `/health`. A IA fará uma varredura completa nas pastas do projeto, validando se a documentação e o código real estão alinhados, retornando um status de saúde do Onion (OK, Desalinhado ou Incompleto) e as ações corretivas.
-*   **Chamada por Comando ("Onion" ou `@onion`):** Ao chamar por "Onion" ou digitar `@onion` no chat, você sinaliza explicitamente para o Orquestrador assumir a liderança ativa, analisar o estado atual da conversa e do projeto, e propor o próximo passo lógico ou executar tarefas de sincronização/diagnóstico de forma autônoma.
-# SyncHR (Smart Leading)
+Em ambiente de produção, todas as chamadas de API feitas no frontend direcionam a requisição para o endpoint `/api/send-email`. Esta rota pode ser vinculada para disparar uma requisição HTTP POST (webhook) diretamente para o **Pipedream**, encaminhando os payloads contendo destinatário, assunto e template HTML para processamento e entrega assíncrona robusta.
 
-## 4. Como Executar e Testar a PoC
+---
 
-A Prova de Conceito (PoC) do SyncHR é portátil e client-side native. Você pode executá-la e testá-la através dos seguintes comandos de terminal:
+## 5. Avaliação do Projeto: Próximos Passos & Features Futuras
 
-### A. Servir o Frontend Localmente
-Selecione um dos comandos abaixo para hospedar a página `poc-dashboard.html` no seu navegador:
-*   **Servidor Estático Rápido:**
-    ```bash
-    npx serve .
-    ```
-*   **Servidor de Hot-Reload (Recarregamento em Tempo Real):**
-    ```bash
-    npx live-server .
-    ```
+Abaixo está o mapeamento detalhado de melhorias identificadas no MVP para elevação da plataforma a nível de produção corporativa em escala empresarial (Roadmap de Engenharia):
 
-### B. Executar Testes de Lógica
-Valide as regras de negócio de escalação de 45 dias, bypass ético e privacidade LGPD simuladas localmente:
-```bash
-node scratch/poc-test-logic.js
+### 🔄 A. Integração de Dados Ativa (API da Sólides)
+*   **Melhoria:** O mapeamento comportamental DISC no MVP baseia-se em um formulário interno de auto-avaliação.
+*   **Feature Futura:** Integração com os webhooks públicos do ecossistema Sólides HR, sincronizando em tempo real os perfis comportamentais dos colaboradores tão logo eles concluam o teste Profiler da Sólides, eliminando a necessidade de quiz interno no SyncHR.
+
+### 🔗 B. Integração de Escopo do Google Workspace Completa
+*   **Melhoria:** A geração de links do Google Meet no MVP é simulada e necessita do fluxo local de consentimento do navegador.
+*   **Feature Futura:** Um microsserviço no backend que armazena chaves e tokens de acesso OAuth persistentes e contas de serviço do Google Workspace (GSuite). Isso permitirá agendar reuniões oficiais diretamente no Google Calendar e gerar salas reais do Google Meet de forma invisível.
+
+### 📊 C. Relatórios Executivos e Exportações
+*   **Melhoria:** O RH visualiza métricas em tempo real no dashboard, mas não há exportação.
+*   **Feature Futura:** Exportação de relatórios em PDF/XLS com dados agregados de adesão, clima de liderança, tendências de eNPS estimado e recorrência de atritos para apresentação em reuniões de comitê de gente e C-Levels.
+
+### 🧠 D. Análise de Sentimento Avançada
+*   **Melhoria:** A auditoria da IA avalia a concordância de tópicos e palavras no feedback.
+*   **Feature Futura:** Integração de modelos de Processamento de Linguagem Natural (PLN) refinados para análise de sentimentos em frases de feedback, calculando índices preditivos de desgaste emocional e estresse do liderado (alerta precoce de turnover para o RH).
+
+### 🚀 E. Desacoplamento Assíncrono Completo via Pipedream Webhooks
+*   **Melhoria:** As rotas chamam `/api/send-email` aguardando a resposta em tempo de execução.
+*   **Feature Futura:** Migrar as requisições de e-mail do backend Next.js diretamente para filas de mensageria (ex: BullMQ) ou chamadas assíncronas de webhook para workflows do Pipedream, reduzindo latência nas requisições do usuário e garantindo resiliência com políticas de retentativa automatizadas.
+
+---
+
+## 6. Instruções de Instalação e Execução
+
+### Pré-requisitos
+*   Node.js (versão 18 ou superior)
+*   Conta no Supabase (com chaves URL e Anon Key configuradas)
+*   Chave de API do Gemini (Google AI Studio)
+
+### A. Configuração de Variáveis de Ambiente
+Crie um arquivo `.env.local` na raiz do projeto com a seguinte estrutura:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://sua-url-do-supabase.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key-aqui
+SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key-aqui
+
+# Copiloto Inteligente
+GEMINI_API_KEY=sua-chave-da-gemini-api
 ```
 
-### C. Executar Testes Automatizados (QA)
-Caso queira integrar suítes de testes com frameworks avançados, utilize:
-*   **Instalação de Dependências de QA:**
-    ```bash
-    npm install -D vitest playwright
-    ```
-*   **Executar Testes Unitários:**
-    ```bash
-    npx vitest
-    ```
-*   **Rodar Cobertura de Código:**
-    ```bash
-    npx vitest run --coverage
-    ```
-*   **Executar Testes de UI E2E:**
-    ```bash
-    npx playwright test
-    ```
+### B. Inicializar o Projeto Localmente
+Instale as dependências e rode o servidor de desenvolvimento:
+```bash
+# Instalar dependências
+npm install
+
+# Iniciar servidor local
+npm run dev
+```
+Abra o navegador em [http://localhost:3000](http://localhost:3000).
+
+### C. Compilação para Produção
+Valide o projeto e gere o build estático otimizado:
+```bash
+npm run build
+```

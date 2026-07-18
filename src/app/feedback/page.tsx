@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { OneOnOne } from '@/types';
+import { sendRHConflictAlertEmail } from '@/lib/emailService';
 import { 
   Check, 
   RefreshCw, 
@@ -147,35 +148,14 @@ function FeedbackFormContent() {
             is_bypass: false
           });
 
-          // Disparar Alerta de Atrito por E-mail para o RH via Resend
           try {
-            const rhEmail = 'rh.priscila@clearit.com.br';
-            const alertHtml = `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 2px solid #dc2626; border-radius: 12px; background-color: #fef2f2; color: #991b1b;">
-                <h2 style="color: #dc2626; margin-top: 0;">🚨 Alerta Crítico: Conflito Iniciado pelo Liderado</h2>
-                <p>Olá Priscila (RH),</p>
-                <p>O SyncHR AI Auditor identificou um **desalinhamento grave ou potencial conflito** iniciado no preenchimento do formulário de feedback pelo colaborador **${meeting?.collaboratorName || 'Colaborador'}**.</p>
-                <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #fee2e2; color: #1e293b;">
-                  <p style="margin: 5px 0;"><strong>Protocolo:</strong> <code>${protocolNum}</code></p>
-                  <p style="margin: 5px 0;"><strong>Colaborador:</strong> ${meeting?.collaboratorName || 'Colaborador'}</p>
-                  <p style="margin: 5px 0;"><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
-                  <p style="margin: 10px 0 5px 0;"><strong>Detalhes da Análise:</strong></p>
-                  <p style="margin: 5px 0; font-style: italic; color: #475569;">"${evalData.consistencyResult?.details || 'Desalinhamento detectado entre as percepções da reunião.'}"</p>
-                </div>
-                <p>Por favor, acesse o Painel do RH na plataforma para avaliar a ocorrência.</p>
-                <hr style="border: 0; border-top: 1px solid #fee2e2; margin: 25px 0;" />
-                <p style="font-size: 11px; color: #991b1b; margin-bottom: 0;">Este é um alerta automático de conformidade corporativa enviado pelo SyncHR.</p>
-              </div>
-            `;
-
-            await fetch('/api/send-email', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                to: rhEmail,
-                subject: `🚨 ALERTA CRÍTICO: Conflito de Feedback - ${meeting?.collaboratorName || 'Colaborador'}`,
-                html: alertHtml
-              })
+            await sendRHConflictAlertEmail({
+              colabName: meeting?.collaboratorName || 'Colaborador',
+              colabRole: 'Colaborador',
+              leaderName: 'Gestor Relacionado',
+              date: new Date().toLocaleDateString('pt-BR'),
+              protocol: protocolNum,
+              details: evalData.consistencyResult?.details || 'Desalinhamento detectado entre as percepções da reunião.'
             });
           } catch (emailErr) {
             console.error('[Error sending conflict email alert to RH]:', emailErr);
