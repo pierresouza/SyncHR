@@ -431,9 +431,3 @@ node scratch/setup-supabase.js
 - **PDI gerado automaticamente** (Plano de Desenvolvimento Individual) com metas SMART, prazo sugerido e recursos de aprendizado da base de conhecimento (feature O)
 - **Recomendações proativas ao líder** antes de cada 1:1: "Com base nas últimas 3 reuniões com Ana, considere abordar autonomia em decisões técnicas"
 - **Score de progresso de PDI** visível no painel RH, com alertas automáticos caso o colaborador não avance nas metas definidas
-
----
-
-*SyncHR é uma iniciativa open-source da Clear IT Brasil. Contribuições são bem-vindas.*
-*Metodologia: [Onion Master Prompt](./ONION-MASTER-PROMPT.md) · Licença: MIT · 2026*
-
